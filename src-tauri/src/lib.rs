@@ -277,6 +277,9 @@ pub fn run() {
             commands::download::get_github_release_by_version,
             commands::download::download_file,
             commands::download::cancel_download,
+            commands::atlas_download::download_atlas_images,
+            commands::atlas_download::cancel_atlas_images,
+            commands::atlas_download::download_atlas_servant_names,
             // 系统相关命令
             commands::system::is_elevated,
             commands::system::is_autostart,

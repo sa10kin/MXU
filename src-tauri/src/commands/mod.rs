@@ -18,6 +18,8 @@ pub mod types;
 pub mod utils;
 
 pub mod app_config;
+#[path = "../../../papermoon/src-tauri/atlas_download.rs"]
+pub mod atlas_download;
 pub mod download;
 pub mod file_ops;
 pub mod maa_agent;

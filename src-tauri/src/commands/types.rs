@@ -428,3 +428,26 @@ pub struct WebView2DirInfo {
     pub path: String,
     pub system: bool,
 }
+
+#[derive(Clone, Deserialize)]
+pub struct AtlasImageEntry {
+    pub url: String,
+    pub save_path: String,
+}
+
+#[derive(Clone, Serialize)]
+pub struct AtlasImageDownloadResult {
+    pub total: u32,
+    pub downloaded: u32,
+    pub skipped: u32,
+    pub failed: u32,
+    pub errors: Vec<String>,
+}
+
+#[derive(Clone, Serialize)]
+pub struct AtlasImageProgressEvent {
+    pub downloaded: u32,
+    pub skipped: u32,
+    pub total: u32,
+    pub failed: u32,
+}
