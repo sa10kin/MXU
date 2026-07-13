@@ -140,8 +140,21 @@ export default {
     rebuildDeletesServantAssets: '從者頭像及已下載的戰鬥識別素材',
     rebuildDeletesOtherAssets: '概念禮裝、魔術禮裝等其他 Atlas 圖片快取',
     rebuildCacheConfirm: '清空快取',
+    downloadAllServantAssets: '下載全部從者素材',
+    preparingRecognitionAssets: '正在準備素材清單',
+    noRecognitionAssets: '目前伺服器沒有可下載的從者識別素材。',
+    recognitionAssetsPrepared: '已準備 {{count}} 個從者識別素材檔案；下載時會略過已快取檔案。',
+    recognitionAssetsResult: '素材下載完成：新增 {{downloaded}}，已存在 {{skipped}}，失敗 {{failed}}。',
+    downloadAllServantAssetsTitle: '下載全部從者素材？',
+    downloadAllServantAssetsMessage: '將增量下載 {{count}} 個從者素材檔案。',
+    downloadAllServantAssetsWarning: '可能占用大量磁碟空間，下載時間取決於網路環境。',
+    downloadAllServantAssetsKinds:
+      '素材依 faces、narrowfigure、commands、commandnp、status 分類儲存。',
+    downloadAllServantAssetsConfirm: '開始完整下載',
+    downloadProgress: '已下載 {{percent}}%（點擊取消）',
+    cancellingRecognitionAssets: '正在取消下載',
     futureAssetHint:
-      '頭像會依從者共用素材池快取。自動任務目前僅適配繁中服；戰鬥識別素材與概念禮裝圖片將在後續任務預檢中依需求取得。',
+      '頭像會依從者共用素材池快取。自動任務目前僅適配繁中服；完整從者識別素材可手動下載，任務預檢依需求下載將在自動戰鬥遷移後接入。',
     error: '圖鑑資料操作失敗：{{message}}',
   },
 

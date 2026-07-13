@@ -144,8 +144,22 @@ export default {
     rebuildDeletesServantAssets: 'サーヴァントの顔アイコンと取得済みの戦闘認識素材',
     rebuildDeletesOtherAssets: '概念礼装・魔術礼装など、その他の Atlas 画像キャッシュ',
     rebuildCacheConfirm: 'キャッシュを消去',
+    downloadAllServantAssets: '全サーヴァント素材をダウンロード',
+    preparingRecognitionAssets: '素材リストを準備中',
+    noRecognitionAssets: 'このサーバーにはダウンロード可能なサーヴァント認識素材がありません。',
+    recognitionAssetsPrepared:
+      '{{count}} 件のサーヴァント認識素材を準備しました。ダウンロード時は既存ファイルをスキップします。',
+    recognitionAssetsResult: '素材ダウンロード完了: 新規 {{downloaded}}、既存 {{skipped}}、失敗 {{failed}}。',
+    downloadAllServantAssetsTitle: '全サーヴァント素材をダウンロードしますか？',
+    downloadAllServantAssetsMessage: '{{count}} 件のサーヴァント素材を増分ダウンロードします。',
+    downloadAllServantAssetsWarning: '大量のディスク容量を使用する場合があります。所要時間はネットワーク環境に依存します。',
+    downloadAllServantAssetsKinds:
+      '素材は faces、narrowfigure、commands、commandnp、status に分類して保存されます。',
+    downloadAllServantAssetsConfirm: '一括ダウンロードを開始',
+    downloadProgress: '{{percent}}% ダウンロード済み（クリックでキャンセル）',
+    cancellingRecognitionAssets: 'ダウンロードを中止しています',
     futureAssetHint:
-      '顔アイコンはサーヴァントごとの共有素材プールにキャッシュされます。自動タスクは現在、繁体字中国語版だけに対応しています。戦闘認識素材と概念礼装画像は、今後のタスク事前チェックで必要時のみ取得します。',
+      '顔アイコンはサーヴァントごとの共有素材プールにキャッシュされます。自動タスクは現在、繁体字中国語版だけに対応しています。サーヴァント認識素材は手動で一括取得でき、タスク事前チェックでの必要時取得は自動戦闘の移行後に追加します。',
     error: '図鑑データの操作に失敗しました: {{message}}',
   },
 

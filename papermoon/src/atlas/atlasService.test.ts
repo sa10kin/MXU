@@ -12,6 +12,7 @@ import {
   atlasImageFileName,
   atlasServerFromFgoClient,
   buildBasicServantFaceDownloadList,
+  buildServantRecognitionImageList,
   missingAtlasDatasets,
   selectCraftEssenceAsset,
   type AtlasCacheStatus,
@@ -80,6 +81,47 @@ describe('Atlas helpers', () => {
       {
         url: 'https://example.com/f_1001000.png',
         save_path: '/atlas/assets/servants/faces/100100_face.png',
+      },
+    ]);
+  });
+
+  it('separates full servant recognition assets by kind and removes scene duplicates', () => {
+    const dirs = {
+      faces: '/assets/faces',
+      narrowFigure: '/assets/narrow_figure',
+      commands: '/assets/commands',
+      commandNp: '/assets/command_np',
+      status: '/assets/status',
+    };
+    expect(
+      buildServantRecognitionImageList(
+        {
+          servants: [
+            {
+              id: 100100,
+              name: 'Artoria',
+              assets: {
+                team: [{ kind: 'faces', variant: 'a', url: 'https://example.com/face.png' }],
+                face: [{ kind: 'faces', variant: 'a', url: 'https://example.com/face.png' }],
+                battle: [
+                  { kind: 'narrowFigure', variant: 'b', url: 'https://example.com/narrow.png' },
+                ],
+              },
+            },
+          ],
+        },
+        dirs,
+      ),
+    ).toEqual([
+      {
+        kind: 'faces',
+        save_path: '/assets/faces/100100_faces_a.png',
+        url: 'https://example.com/face.png',
+      },
+      {
+        kind: 'narrowFigure',
+        save_path: '/assets/narrow_figure/100100_narrowFigure_b.png',
+        url: 'https://example.com/narrow.png',
       },
     ]);
   });

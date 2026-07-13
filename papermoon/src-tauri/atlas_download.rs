@@ -7,6 +7,7 @@ use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use tauri::Emitter;
+use tokio::io::AsyncWriteExt;
 use tokio::sync::Semaphore;
 
 use super::types::{AtlasImageDownloadResult, AtlasImageEntry, AtlasImageProgressEvent};
@@ -22,6 +23,83 @@ pub struct AtlasServantNamesResult {
     count: usize,
     path: String,
     source_url: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AtlasServantRecognitionIndexResult {
+    server: String,
+    path: String,
+    source_url: String,
+}
+
+#[tauri::command]
+pub async fn download_atlas_servant_recognition_index(
+    server: String,
+) -> Result<AtlasServantRecognitionIndexResult, String> {
+    let server = server.to_uppercase();
+    if !matches!(server.as_str(), "TW" | "CN" | "JP") {
+        return Err(format!("Unsupported Atlas server: {}", server));
+    }
+
+    let source_url = format!("https://api.atlasacademy.io/export/{}/nice_servant.json", server);
+    info!("Downloading Atlas servant recognition index: {}", source_url);
+
+    let client = Client::builder()
+        .user_agent(build_user_agent())
+        .connect_timeout(std::time::Duration::from_secs(10))
+        .timeout(std::time::Duration::from_secs(600))
+        .build()
+        .map_err(|e| format!("Failed to create HTTP client: {}", e))?;
+    let response = client
+        .get(&source_url)
+        .send()
+        .await
+        .map_err(|e| format!("Atlas servant recognition request failed: {}", e))?;
+    if !response.status().is_success() {
+        return Err(format!(
+            "Atlas servant recognition HTTP error: {}",
+            response.status()
+        ));
+    }
+
+    let catalog_dir = super::utils::get_app_data_dir()?
+        .join("cache")
+        .join("atlas")
+        .join("catalog")
+        .join(&server);
+    tokio::fs::create_dir_all(&catalog_dir)
+        .await
+        .map_err(|e| format!("Failed to create Atlas catalog dir: {}", e))?;
+    let path = catalog_dir.join("servant_recognition.raw.json");
+    let temp_path = catalog_dir.join("servant_recognition.raw.json.tmp");
+    let mut file = tokio::fs::File::create(&temp_path)
+        .await
+        .map_err(|e| format!("Failed to create Atlas index temp file: {}", e))?;
+    let mut stream = response.bytes_stream();
+    while let Some(chunk) = stream.next().await {
+        let chunk = chunk.map_err(|e| format!("Atlas servant recognition download failed: {}", e))?;
+        file.write_all(&chunk)
+            .await
+            .map_err(|e| format!("Failed to write Atlas index: {}", e))?;
+    }
+    file.flush()
+        .await
+        .map_err(|e| format!("Failed to finish Atlas index: {}", e))?;
+    tokio::fs::rename(&temp_path, &path)
+        .await
+        .map_err(|e| format!("Failed to move Atlas index into place: {}", e))?;
+
+    info!(
+        "Atlas servant recognition index saved: server={}, path={}",
+        server,
+        path.display()
+    );
+    Ok(AtlasServantRecognitionIndexResult {
+        server,
+        path: path.to_string_lossy().to_string(),
+        source_url,
+    })
 }
 
 #[tauri::command]

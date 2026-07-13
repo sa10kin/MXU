@@ -4,6 +4,12 @@ import { getCacheDir, isTauri, joinPath } from '@/utils/paths';
 
 export type AtlasServer = 'TW' | 'CN' | 'JP';
 export type AtlasDataset = 'servants' | 'craftEssences' | 'mysticCodes';
+export type AtlasServantRecognitionAssetKind =
+  | 'faces'
+  | 'narrowFigure'
+  | 'commands'
+  | 'commandNp'
+  | 'status';
 
 export interface AtlasDatasetStatus {
   dataset: AtlasDataset;
@@ -52,6 +58,7 @@ interface AtlasBasicServantIndex {
 export interface AtlasImageEntry {
   url: string;
   save_path: string;
+  kind?: string;
 }
 
 export interface AtlasImageDownloadResult {
@@ -74,6 +81,12 @@ export interface AtlasImageStatus {
   total: number;
   downloaded: number;
   dir: string;
+}
+
+export interface AtlasServantRecognitionStatus {
+  prepared: boolean;
+  total: number;
+  byKind: Partial<Record<AtlasServantRecognitionAssetKind, number>>;
 }
 
 export interface AtlasAssetIndex {
@@ -112,6 +125,14 @@ const ATLAS_API_BASE = 'https://api.atlasacademy.io';
 const ATLAS_FETCH_TIMEOUT_MS = 20_000;
 const ATLAS_FETCH_RETRIES = 2;
 const BASIC_SERVANTS_INDEX_FILE = 'basic_servants.json';
+const SERVANT_RECOGNITION_INDEX_FILE = 'servant_recognition.index.json';
+const SERVANT_RECOGNITION_ASSET_KINDS: AtlasServantRecognitionAssetKind[] = [
+  'faces',
+  'narrowFigure',
+  'commands',
+  'commandNp',
+  'status',
+];
 
 const INDEX_FILES: Record<AtlasDataset, string> = {
   servants: 'servants.index.json',
@@ -151,9 +172,11 @@ export async function getAtlasCatalogDir(server: AtlasServer): Promise<string> {
   return joinPath(cacheDir, 'atlas', 'catalog', server);
 }
 
-export async function getAtlasServantAssetDir(kind: 'faces'): Promise<string> {
+export async function getAtlasServantAssetDir(
+  kind: AtlasServantRecognitionAssetKind,
+): Promise<string> {
   const cacheDir = await getCacheDir();
-  return joinPath(cacheDir, 'atlas', 'assets', 'servants', kind);
+  return joinPath(cacheDir, 'atlas', 'assets', 'servants', servantRecognitionAssetDirName(kind));
 }
 
 export async function getAtlasImageDir(
@@ -171,6 +194,10 @@ function indexPath(cacheDir: string, dataset: AtlasDataset) {
 
 function servantNamesIndexPath(cacheDir: string) {
   return joinPath(cacheDir, BASIC_SERVANTS_INDEX_FILE);
+}
+
+function servantRecognitionIndexPath(catalogDir: string) {
+  return joinPath(catalogDir, SERVANT_RECOGNITION_INDEX_FILE);
 }
 
 function manifestPath(cacheDir: string) {
@@ -343,6 +370,69 @@ export async function downloadBasicServantFaces(
     return { total: 0, downloaded: 0, skipped: 0, failed: 0, errors: [] };
   }
 
+  return invoke('download_atlas_images', { imageList, concurrency: 6 });
+}
+
+export async function getServantRecognitionStatus(
+  server: AtlasServer,
+): Promise<AtlasServantRecognitionStatus> {
+  const index = await readServantRecognitionIndex(server);
+  if (!index?.servants || !Array.isArray(index.servants)) {
+    return { prepared: false, total: 0, byKind: {} };
+  }
+  const imageDirs = await getServantRecognitionImageDirs();
+  const list = buildServantRecognitionImageList(index, imageDirs);
+  const byKind: Partial<Record<AtlasServantRecognitionAssetKind, number>> = {};
+  for (const entry of list) {
+    const kind = entry.kind as AtlasServantRecognitionAssetKind;
+    byKind[kind] = (byKind[kind] || 0) + 1;
+  }
+  return { prepared: true, total: list.length, byKind };
+}
+
+/** Download and process the full servant metadata index; this does not download images. */
+export async function prepareServantRecognitionAssets(
+  server: AtlasServer,
+): Promise<AtlasServantRecognitionStatus> {
+  if (!isTauri()) {
+    throw new Error('Atlas recognition preparation is only available in the desktop app.');
+  }
+
+  const result = await invoke<{ path: string }>('download_atlas_servant_recognition_index', {
+    server,
+  });
+  const { readTextFile, remove } = await import('@tauri-apps/plugin-fs');
+  try {
+    const payload = JSON.parse(await readTextFile(result.path));
+    if (!Array.isArray(payload)) {
+      throw new Error('Atlas servant recognition export has unexpected shape.');
+    }
+    const catalogDir = await getAtlasCatalogDir(server);
+    await writeJsonFileAtomically(
+      catalogDir,
+      servantRecognitionIndexPath(catalogDir),
+      buildServantIndex(payload, server),
+    );
+  } finally {
+    await remove(result.path).catch(() => {});
+  }
+  return getServantRecognitionStatus(server);
+}
+
+export async function downloadAllServantRecognitionAssets(
+  server: AtlasServer,
+): Promise<AtlasImageDownloadResult> {
+  if (!isTauri()) {
+    throw new Error('Atlas image download is only available in the desktop app.');
+  }
+  const index = await readServantRecognitionIndex(server);
+  if (!index?.servants || !Array.isArray(index.servants)) {
+    throw new Error('Atlas servant recognition metadata has not been prepared.');
+  }
+  const imageList = buildServantRecognitionImageList(index, await getServantRecognitionImageDirs());
+  if (imageList.length === 0) {
+    return { total: 0, downloaded: 0, skipped: 0, failed: 0, errors: [] };
+  }
   return invoke('download_atlas_images', { imageList, concurrency: 6 });
 }
 
@@ -556,6 +646,57 @@ async function readServantNamesIndex(server: AtlasServer, allowFallback = true) 
   } catch {
     return null;
   }
+}
+
+async function readServantRecognitionIndex(server: AtlasServer) {
+  const catalogDir = await getAtlasCatalogDir(server);
+  const path = servantRecognitionIndexPath(catalogDir);
+  const { readTextFile, exists } = await import('@tauri-apps/plugin-fs');
+  if (!(await exists(path))) return null;
+  try {
+    return JSON.parse(await readTextFile(path));
+  } catch {
+    return null;
+  }
+}
+
+async function getServantRecognitionImageDirs(): Promise<
+  Record<AtlasServantRecognitionAssetKind, string>
+> {
+  const entries = await Promise.all(
+    SERVANT_RECOGNITION_ASSET_KINDS.map(async (kind) => [kind, await getAtlasServantAssetDir(kind)]),
+  );
+  return Object.fromEntries(entries) as Record<AtlasServantRecognitionAssetKind, string>;
+}
+
+export function buildServantRecognitionImageList(
+  index: { servants?: AtlasServantEntry[] },
+  imageDirs: Record<AtlasServantRecognitionAssetKind, string>,
+): AtlasImageEntry[] {
+  const entries: AtlasImageEntry[] = [];
+  const seen = new Set<string>();
+  for (const servant of index.servants || []) {
+    if (!servant.id || !servant.assets || Array.isArray(servant.assets)) continue;
+    const assets = Object.values(servant.assets).flat();
+    for (const asset of assets) {
+      if (!isServantRecognitionAssetKind(asset.kind)) continue;
+      const savePath = `${imageDirs[asset.kind]}/${atlasImageFileName(servant.id, asset)}`;
+      if (seen.has(savePath)) continue;
+      seen.add(savePath);
+      entries.push({ url: asset.url, save_path: savePath, kind: asset.kind });
+    }
+  }
+  return entries;
+}
+
+function isServantRecognitionAssetKind(
+  kind: string,
+): kind is AtlasServantRecognitionAssetKind {
+  return SERVANT_RECOGNITION_ASSET_KINDS.includes(kind as AtlasServantRecognitionAssetKind);
+}
+
+function servantRecognitionAssetDirName(kind: AtlasServantRecognitionAssetKind): string {
+  return kind.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`);
 }
 
 async function enrichLocalizedNames<T extends AtlasCatalogEntry>(
@@ -925,7 +1066,7 @@ function buildServantIndex(payload: unknown[], server: AtlasServer) {
       rarity: optionalNumber(item.rarity),
       assets: {
         team: collectServantSceneAssets(item, ['faces', 'status']),
-        battle: collectServantSceneAssets(item, ['charaGraph', 'narrowFigure']),
+        battle: collectServantSceneAssets(item, ['narrowFigure']),
         command: collectServantSceneAssets(item, ['commands']),
         face: collectServantSceneAssets(item, ['faces']),
         status: collectServantSceneAssets(item, ['status']),
