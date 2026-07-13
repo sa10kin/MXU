@@ -49,6 +49,7 @@ export default {
     appearance: '外観',
     hotkeys: 'ショートカットキー',
     general: '一般',
+    atlas: 'Atlas 図鑑',
     taskSettings: 'タスク設定',
     taskSettingsEmpty: '表示できる設定項目がありません',
     language: '言語',
@@ -119,6 +120,33 @@ export default {
     autoClearLogsOnLaunch: '実行ログの自動クリア',
     autoClearLogsOnLaunchHint:
       'プロジェクトの起動時に自動で実行ログをクリアし、古いログファイルを削除します',
+  },
+
+  atlas: {
+    title: 'Atlas 図鑑',
+    server: '図鑑サーバー',
+    basicServants: 'サーヴァント基本データ（{{server}}）',
+    basicServantsHint:
+      'サーヴァント名・基本情報・顔アイコンをダウンロードします。戦闘認識素材と概念礼装データはダウンロードしません。',
+    status: '状態',
+    loading: 'キャッシュを読み込み中',
+    available: '{{count}} 騎のサーヴァントをキャッシュ済み',
+    notDownloaded: '未ダウンロード',
+    cachePath: 'キャッシュの場所',
+    downloadBasicData: '基本データをダウンロード',
+    refreshBasicData: '基本データを更新',
+    updating: '更新中',
+    rebuildCache: 'Atlas キャッシュを再構築',
+    rebuildCacheTitle: 'Atlas キャッシュを再構築しますか？',
+    rebuildCacheMessage: '確認すると、ローカルのすべての Atlas キャッシュを削除して状態を更新します。データや画像は自動で再取得しません。',
+    rebuildCacheWarning: 'この操作は元に戻せません。慎重に確認してください。',
+    rebuildDeletesCatalogues: 'TW、CN、JP の基本図鑑インデックス',
+    rebuildDeletesServantAssets: 'サーヴァントの顔アイコンと取得済みの戦闘認識素材',
+    rebuildDeletesOtherAssets: '概念礼装・魔術礼装など、その他の Atlas 画像キャッシュ',
+    rebuildCacheConfirm: 'キャッシュを消去',
+    futureAssetHint:
+      '顔アイコンはサーヴァントごとの共有素材プールにキャッシュされます。自動タスクは現在、繁体字中国語版だけに対応しています。戦闘認識素材と概念礼装画像は、今後のタスク事前チェックで必要時のみ取得します。',
+    error: '図鑑データの操作に失敗しました: {{message}}',
   },
 
   // 特殊タスク

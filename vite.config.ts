@@ -39,6 +39,7 @@ export default defineConfig(async () => ({
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
+      "@papermoon": path.resolve(__dirname, "./papermoon/src"),
     },
   },
   define: {

@@ -11,6 +11,7 @@ import {
   Menu,
   X,
   LayoutGrid,
+  Database,
   ChevronRight,
 } from 'lucide-react';
 import clsx from 'clsx';
@@ -23,6 +24,7 @@ import type { InterfaceSettingSection, ProjectInterface } from '@/types/interfac
 import { loadIconAsDataUrl } from '@/services/contentResolver';
 import { ConfirmDialog } from './ConfirmDialog';
 import { OptionEditor } from './OptionEditor';
+import { AtlasSettingsSection } from '@papermoon/atlas/AtlasSettingsSection';
 import {
   AppearanceSection,
   HotkeySection,
@@ -245,6 +247,7 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
   }, []);
 
   const langKey = getInterfaceLangKey(language);
+  const showAtlas = projectInterface?.name === 'PaperMoon';
   const settingsSections = useMemo<RenderSettingsSection[]>(() => {
     const sections = projectInterface?.setting || [];
     const langMap = interfaceTranslations[langKey] || {};
@@ -264,6 +267,9 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
       items.push({ id: 'task-settings', icon: LayoutGrid, labelKey: 'settings.taskSettings' });
     }
     items.push({ id: 'general', icon: Settings2, labelKey: 'settings.general' });
+    if (showAtlas) {
+      items.push({ id: 'atlas', icon: Database, labelKey: 'settings.atlas' });
+    }
     items.push({ id: 'hotkeys', icon: Key, labelKey: 'settings.hotkeys' });
     if (projectInterface?.mirrorchyan_rid) {
       items.push({ id: 'update', icon: Download, labelKey: 'mirrorChyan.title' });
@@ -273,7 +279,7 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
       { id: 'about', icon: Info, labelKey: 'about.title' },
     );
     return items;
-  }, [projectInterface?.mirrorchyan_rid, settingsSections.length]);
+  }, [projectInterface?.mirrorchyan_rid, settingsSections.length, showAtlas]);
 
   // 当前高亮的 section
   const [activeSection, setActiveSection] = useState('appearance');
@@ -469,6 +475,9 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
 
             {/* 通用设置 */}
             <GeneralSection />
+
+            {/* PaperMoon Atlas 图鉴数据 */}
+            {showAtlas && <AtlasSettingsSection />}
 
             {/* 快捷键设置 */}
             <HotkeySection />
