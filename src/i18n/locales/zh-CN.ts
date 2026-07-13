@@ -50,7 +50,7 @@ export default {
     appearance: '外观',
     hotkeys: '快捷键',
     general: '通用',
-    atlas: 'Atlas 图鉴',
+    atlas: 'Atlas',
     taskSettings: '任务设置',
     taskSettingsEmpty: '当前没有可显示的设置项',
     language: '语言',
@@ -121,7 +121,7 @@ export default {
   },
 
   atlas: {
-    title: 'Atlas 图鉴',
+    title: 'Atlas',
     server: '图鉴服务器',
     basicServants: '从者基础资料（{{server}}）',
     basicServantsHint: '下载从者名称、基础信息与头像；不下载战斗识别素材或概念礼装数据。',

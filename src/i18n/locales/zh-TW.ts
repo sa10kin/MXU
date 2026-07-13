@@ -49,7 +49,7 @@ export default {
     appearance: '外觀',
     hotkeys: '快捷鍵',
     general: '一般',
-    atlas: 'Atlas 圖鑑',
+    atlas: 'Atlas',
     taskSettings: '任務設定',
     taskSettingsEmpty: '目前沒有可顯示的設定項',
     language: '語言',
@@ -120,7 +120,7 @@ export default {
   },
 
   atlas: {
-    title: 'Atlas 圖鑑',
+    title: 'Atlas',
     server: '圖鑑伺服器',
     basicServants: '從者基礎資料（{{server}}）',
     basicServantsHint: '下載從者名稱、基礎資訊與頭像；不下載戰鬥識別素材或概念禮裝資料。',
