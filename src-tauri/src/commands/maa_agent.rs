@@ -20,7 +20,9 @@ use maa_framework::resource::Resource;
 use maa_framework::tasker::Tasker;
 
 use super::types::{AgentConfig, MaaState, TaskConfig};
-use super::utils::{emit_callback_event, get_logs_dir, handle_task_callback, normalize_path};
+use super::utils::{
+    emit_callback_event, get_app_data_dir, get_logs_dir, handle_task_callback, normalize_path,
+};
 use regex::Regex;
 use std::sync::LazyLock;
 use std::time::{Duration, Instant};
@@ -339,6 +341,23 @@ async fn start_single_agent(
             .env("PYTHONUTF8", "1")
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
+
+        // 让 Agent 使用与客户端一致的可写数据目录。该变量遵循 PI_* 协议，
+        // 不影响未识别它的既有 Agent。
+        match get_app_data_dir() {
+            Ok(data_dir) => {
+                cmd.env("PI_CLIENT_DATA_DIR", &data_dir);
+                debug!(
+                    "[agent#{}] Injected PI_CLIENT_DATA_DIR: {}",
+                    agent_index,
+                    data_dir.display()
+                );
+            }
+            Err(error) => warn!(
+                "[agent#{}] Failed to resolve PI_CLIENT_DATA_DIR: {}",
+                agent_index, error
+            ),
+        }
 
         // PI v2.5.0: 仅允许注入 PI_* 环境变量，避免覆盖宿主进程关键环境。
         let mut injected_count = 0usize;
