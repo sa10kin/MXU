@@ -1,0 +1,65 @@
+import { describe, expect, it, vi } from 'vitest';
+
+vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }));
+vi.mock('@/utils/logger', () => ({ loggers: { app: { warn: vi.fn() } } }));
+vi.mock('@/utils/paths', () => ({
+  getCacheDir: vi.fn(),
+  isTauri: vi.fn(() => false),
+  joinPath: (...parts: string[]) => parts.join('/'),
+}));
+
+import {
+  atlasImageFileName,
+  atlasServerFromFgoClient,
+  missingAtlasDatasets,
+  selectCraftEssenceAsset,
+  type AtlasCacheStatus,
+} from './atlasService';
+
+describe('Atlas helpers', () => {
+  it('maps FGO clients to Atlas servers', () => {
+    expect(atlasServerFromFgoClient('cn')).toBe('CN');
+    expect(atlasServerFromFgoClient('JP')).toBe('JP');
+    expect(atlasServerFromFgoClient('tw')).toBe('TW');
+  });
+
+  it('reports missing datasets and sanitizes image names', () => {
+    const status: AtlasCacheStatus = {
+      server: 'TW',
+      cacheDir: '/atlas/TW',
+      datasets: {
+        servants: { dataset: 'servants', available: true, count: 1, path: 'servants.json' },
+        craftEssences: {
+          dataset: 'craftEssences',
+          available: false,
+          count: 0,
+          path: 'craft_essences.json',
+        },
+        mysticCodes: {
+          dataset: 'mysticCodes',
+          available: false,
+          count: 0,
+          path: 'mystic_codes.json',
+        },
+      },
+    };
+
+    expect(missingAtlasDatasets(status)).toEqual(['craftEssences', 'mysticCodes']);
+    expect(
+      atlasImageFileName(1, { kind: 'faces', variant: 'a/b', url: 'https://example.com' }),
+    ).toBe('1_faces_a-b.png');
+  });
+
+  it('selects the matching craft essence image', () => {
+    const assets = [
+      { kind: 'equipFaces', variant: 'b', url: 'https://example.com/equip.png' },
+      { kind: 'faces', variant: 'b', url: 'https://example.com/face-b.png' },
+      { kind: 'faces', variant: 'a', url: 'https://example.com/face-a.png' },
+    ];
+
+    expect(selectCraftEssenceAsset(assets, 'faces')?.url).toBe('https://example.com/face-a.png');
+    expect(selectCraftEssenceAsset(assets, 'equipFaces')?.url).toBe(
+      'https://example.com/equip.png',
+    );
+  });
+});

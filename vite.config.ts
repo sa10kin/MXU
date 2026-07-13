@@ -1,4 +1,4 @@
-import { defineConfig } from "vite";
+import { defineConfig } from "vitest/config";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import path from "path";
@@ -94,6 +94,11 @@ export default defineConfig(async () => ({
         },
       },
     },
+  },
+
+  test: {
+    environment: "node",
+    include: ["src/**/*.test.ts", "papermoon/src/**/*.test.ts"],
   },
 
   // Vite options tailored for Tauri development and only applied in `tauri dev` or `tauri build`

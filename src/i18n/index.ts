@@ -69,6 +69,7 @@ export const getInterfaceLangKey = (lang: LanguagePreference | string): string =
 
 /** 从 localStorage 读取语言偏好（可能为 system） */
 export const getStoredLanguagePreference = (): LanguagePreference | null => {
+  if (typeof localStorage === 'undefined') return null;
   const stored = localStorage.getItem('mxu-language');
   if (!stored) return null;
   if (stored === 'system') return 'system';
