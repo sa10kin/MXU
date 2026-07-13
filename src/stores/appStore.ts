@@ -1,4 +1,8 @@
-import i18n, { getInterfaceLangKey, setLanguage as setI18nLanguage } from '@/i18n';
+import i18n, {
+  getInterfaceLangKey,
+  normalizeLanguagePreference,
+  setLanguage as setI18nLanguage,
+} from '@/i18n';
 import { saveConfig } from '@/services/configService';
 import { maaService } from '@/services/maaService';
 import {
@@ -1234,7 +1238,9 @@ export const useAppStore = create<AppState>()(
       const localLayout = isWebUI ? loadWebUILayout() : null;
       const effectiveTheme = localAppearance?.theme ?? config.settings.theme;
       const effectiveAccentColor = localAppearance?.accentColor ?? configAccentColor;
-      const effectiveLanguage = localAppearance?.language ?? config.settings.language;
+      const effectiveLanguage = normalizeLanguagePreference(
+        localAppearance?.language ?? config.settings.language,
+      );
       const effectiveBgImage = localAppearance
         ? localAppearance.backgroundImage
         : config.settings.backgroundImage;
