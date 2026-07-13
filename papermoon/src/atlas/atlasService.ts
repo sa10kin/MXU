@@ -31,6 +31,24 @@ export interface AtlasNameDownloadResult {
   error?: string;
 }
 
+export interface AtlasBasicServantStatus {
+  server: AtlasServer;
+  available: boolean;
+  count: number;
+  updatedAt?: number;
+  path: string;
+  error?: string;
+}
+
+interface AtlasBasicServantEntry extends AtlasServantEntry {
+  face?: string;
+}
+
+interface AtlasBasicServantIndex {
+  generatedAt?: number;
+  servants?: AtlasBasicServantEntry[];
+}
+
 export interface AtlasImageEntry {
   url: string;
   save_path: string;
@@ -93,7 +111,7 @@ const log = loggers.app;
 const ATLAS_API_BASE = 'https://api.atlasacademy.io';
 const ATLAS_FETCH_TIMEOUT_MS = 20_000;
 const ATLAS_FETCH_RETRIES = 2;
-const SERVANT_NAMES_INDEX_FILE = 'servant_names.index.json';
+const BASIC_SERVANTS_INDEX_FILE = 'basic_servants.json';
 
 const INDEX_FILES: Record<AtlasDataset, string> = {
   servants: 'servants.index.json',
@@ -128,6 +146,16 @@ export async function getAtlasCacheDir(server: AtlasServer): Promise<string> {
   return joinPath(cacheDir, 'atlas', server);
 }
 
+export async function getAtlasCatalogDir(server: AtlasServer): Promise<string> {
+  const cacheDir = await getCacheDir();
+  return joinPath(cacheDir, 'atlas', 'catalog', server);
+}
+
+export async function getAtlasServantAssetDir(kind: 'faces'): Promise<string> {
+  const cacheDir = await getCacheDir();
+  return joinPath(cacheDir, 'atlas', 'assets', 'servants', kind);
+}
+
 export async function getAtlasImageDir(
   server: AtlasServer,
   dataset?: AtlasDataset,
@@ -142,7 +170,7 @@ function indexPath(cacheDir: string, dataset: AtlasDataset) {
 }
 
 function servantNamesIndexPath(cacheDir: string) {
-  return joinPath(cacheDir, SERVANT_NAMES_INDEX_FILE);
+  return joinPath(cacheDir, BASIC_SERVANTS_INDEX_FILE);
 }
 
 function manifestPath(cacheDir: string) {
@@ -240,6 +268,82 @@ export async function downloadServantNamesAllServers(
 
 export async function hasServantNames(server: AtlasServer): Promise<boolean> {
   return (await readServantNamesIndex(server, false)) !== null;
+}
+
+/**
+ * basic_servant is the per-server catalogue index. Its face URLs seed the
+ * shared avatar cache used by servant selection; it does not fetch battle
+ * recognition assets or craft essence data.
+ */
+export async function getBasicServantStatus(
+  server: AtlasServer = 'TW',
+): Promise<AtlasBasicServantStatus> {
+  const catalogDir = await getAtlasCatalogDir(server);
+  const path = servantNamesIndexPath(catalogDir);
+  if (!isTauri()) return { server, available: false, count: 0, path };
+
+  try {
+    const index = await readServantNamesIndex(server, false);
+    const servants = Array.isArray(index?.servants) ? index.servants : [];
+    return {
+      server,
+      available: index !== null,
+      count: servants.length,
+      updatedAt: typeof index?.generatedAt === 'number' ? index.generatedAt : undefined,
+      path,
+    };
+  } catch (error) {
+    return {
+      server,
+      available: false,
+      count: 0,
+      path,
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
+}
+
+/** Download or refresh a server catalogue and its shared servant face images. */
+export async function downloadBasicServantData(
+  server: AtlasServer = 'TW',
+): Promise<AtlasBasicServantStatus> {
+  await downloadServantNames(server);
+  await downloadBasicServantFaces(server);
+  return getBasicServantStatus(server);
+}
+
+/**
+ * Remove every Atlas catalogue and asset cache. This intentionally leaves the
+ * cache empty; downloading is a separate explicit action after UI consent.
+ */
+export async function rebuildAtlasCache(
+): Promise<void> {
+  if (!isTauri()) {
+    throw new Error('Atlas cache rebuild is only available in the desktop app.');
+  }
+
+  const cacheDir = await getCacheDir();
+  const atlasDir = await joinPath(cacheDir, 'atlas');
+  const { exists, remove } = await import('@tauri-apps/plugin-fs');
+  if (await exists(atlasDir)) {
+    await remove(atlasDir, { recursive: true });
+  }
+}
+
+export async function downloadBasicServantFaces(
+  server: AtlasServer,
+): Promise<AtlasImageDownloadResult> {
+  if (!isTauri()) {
+    throw new Error('Atlas image download is only available in the desktop app.');
+  }
+
+  const index = await readServantNamesIndex(server, false);
+  const imageList = buildBasicServantFaceDownloadList(index, await getAtlasServantAssetDir('faces'));
+  if (imageList.length === 0) {
+    return { total: 0, downloaded: 0, skipped: 0, failed: 0, errors: [] };
+  }
+
+  return invoke('download_atlas_images', { imageList, concurrency: 6 });
 }
 
 export async function getAtlasImageStatus(
@@ -431,11 +535,21 @@ async function readIndex(server: AtlasServer, dataset: AtlasDataset) {
 }
 
 async function readServantNamesIndex(server: AtlasServer, allowFallback = true) {
-  const cacheDir = await getAtlasCacheDir(server);
-  const namesPath = servantNamesIndexPath(cacheDir);
-  const fallbackPath = indexPath(cacheDir, 'servants');
+  const [catalogDir, legacyCacheDir] = await Promise.all([
+    getAtlasCatalogDir(server),
+    getAtlasCacheDir(server),
+  ]);
+  const namesPath = servantNamesIndexPath(catalogDir);
+  const legacyNamesPath = joinPath(legacyCacheDir, 'servant_names.index.json');
+  const fallbackPath = indexPath(legacyCacheDir, 'servants');
   const { readTextFile, exists } = await import('@tauri-apps/plugin-fs');
-  const path = (await exists(namesPath)) ? namesPath : allowFallback ? fallbackPath : namesPath;
+  const path = (await exists(namesPath))
+    ? namesPath
+    : (await exists(legacyNamesPath))
+      ? legacyNamesPath
+      : allowFallback
+        ? fallbackPath
+        : namesPath;
   if (!(await exists(path))) return null;
   try {
     return JSON.parse(await readTextFile(path));
@@ -495,7 +609,7 @@ function catalogLookupKey(entry: AtlasCatalogEntry): string {
 }
 
 async function downloadServantNames(server: AtlasServer): Promise<void> {
-  const cacheDir = await getAtlasCacheDir(server);
+  const catalogDir = await getAtlasCatalogDir(server);
   if (isTauri()) {
     await invoke('download_atlas_servant_names', { server });
     return;
@@ -508,7 +622,24 @@ async function downloadServantNames(server: AtlasServer): Promise<void> {
   }
 
   const index = buildServantNameIndex(payload, server);
-  await writeJsonFileAtomically(cacheDir, servantNamesIndexPath(cacheDir), index);
+  await writeJsonFileAtomically(catalogDir, servantNamesIndexPath(catalogDir), index);
+}
+
+export function buildBasicServantFaceDownloadList(
+  index: AtlasBasicServantIndex | null,
+  imageDir: string,
+): AtlasImageEntry[] {
+  const entries = index?.servants ?? [];
+  const seen = new Set<string>();
+  const images: AtlasImageEntry[] = [];
+  for (const servant of entries) {
+    if (!servant.id || !servant.face) continue;
+    const savePath = `${imageDir}/${servant.id}_face.png`;
+    if (seen.has(savePath)) continue;
+    seen.add(savePath);
+    images.push({ url: servant.face, save_path: savePath });
+  }
+  return images;
 }
 
 function collectImageDownloadList(
@@ -816,6 +947,7 @@ function buildServantNameIndex(payload: unknown[], server: AtlasServer) {
       nameJp: server === 'JP' ? optionalString(item.name) : undefined,
       className: optionalString(item.className),
       rarity: optionalNumber(item.rarity),
+      face: optionalString(item.face),
     })),
   };
 }

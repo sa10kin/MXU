@@ -11,6 +11,7 @@ vi.mock('@/utils/paths', () => ({
 import {
   atlasImageFileName,
   atlasServerFromFgoClient,
+  buildBasicServantFaceDownloadList,
   missingAtlasDatasets,
   selectCraftEssenceAsset,
   type AtlasCacheStatus,
@@ -61,5 +62,25 @@ describe('Atlas helpers', () => {
     expect(selectCraftEssenceAsset(assets, 'equipFaces')?.url).toBe(
       'https://example.com/equip.png',
     );
+  });
+
+  it('plans shared face-cache downloads from the basic servant catalogue', () => {
+    expect(
+      buildBasicServantFaceDownloadList(
+        {
+          servants: [
+            { id: 100100, name: 'Artoria', face: 'https://example.com/f_1001000.png' },
+            { id: 100100, name: 'Artoria duplicate', face: 'https://example.com/f_1001001.png' },
+            { id: 100200, name: 'No image' },
+          ],
+        },
+        '/atlas/assets/servants/faces',
+      ),
+    ).toEqual([
+      {
+        url: 'https://example.com/f_1001000.png',
+        save_path: '/atlas/assets/servants/faces/100100_face.png',
+      },
+    ]);
   });
 });

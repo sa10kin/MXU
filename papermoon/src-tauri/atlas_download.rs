@@ -74,16 +74,17 @@ pub async fn download_atlas_servant_names(
         "servants": servants,
     });
 
-    let cache_dir = super::utils::get_app_data_dir()?
+    let catalog_dir = super::utils::get_app_data_dir()?
         .join("cache")
         .join("atlas")
+        .join("catalog")
         .join(&server);
-    tokio::fs::create_dir_all(&cache_dir)
+    tokio::fs::create_dir_all(&catalog_dir)
         .await
-        .map_err(|e| format!("Failed to create Atlas cache dir: {}", e))?;
+        .map_err(|e| format!("Failed to create Atlas catalog dir: {}", e))?;
 
-    let path = cache_dir.join("servant_names.index.json");
-    let tmp_path = cache_dir.join("servant_names.index.json.tmp");
+    let path = catalog_dir.join("basic_servants.json");
+    let tmp_path = catalog_dir.join("basic_servants.json.tmp");
     let body = serde_json::to_string_pretty(&index)
         .map_err(|e| format!("Failed to encode Atlas servant names index: {}", e))?;
     tokio::fs::write(&tmp_path, body)
@@ -128,6 +129,7 @@ fn build_servant_name_entry(item: &Value, server: &str) -> Value {
         .and_then(Value::as_str);
     let class_name = obj.and_then(|v| v.get("className")).and_then(Value::as_str);
     let rarity = obj.and_then(|v| v.get("rarity")).and_then(Value::as_i64);
+    let face = obj.and_then(|v| v.get("face")).and_then(Value::as_str);
 
     let mut entry = Map::new();
     if let Some(id) = id {
@@ -157,6 +159,9 @@ fn build_servant_name_entry(item: &Value, server: &str) -> Value {
     }
     if let Some(rarity) = rarity {
         entry.insert("rarity".to_string(), json!(rarity));
+    }
+    if let Some(face) = face {
+        entry.insert("face".to_string(), json!(face));
     }
 
     Value::Object(entry)
