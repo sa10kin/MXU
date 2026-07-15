@@ -12,6 +12,7 @@ import {
   atlasImageFileName,
   atlasServerFromFgoClient,
   buildBasicServantFaceDownloadList,
+  buildServantIndex,
   buildServantRecognitionImageList,
   missingAtlasDatasets,
   selectCraftEssenceAsset,
@@ -81,6 +82,10 @@ describe('Atlas helpers', () => {
       {
         url: 'https://example.com/f_1001000.png',
         save_path: '/atlas/assets/servants/faces/100100_face.png',
+        dataset: 'servants',
+        atlas_id: 100100,
+        kind: 'faces',
+        variant: 'basic',
       },
     ]);
   });
@@ -114,14 +119,130 @@ describe('Atlas helpers', () => {
       ),
     ).toEqual([
       {
+        dataset: 'servants',
+        atlas_id: 100100,
         kind: 'faces',
+        variant: 'a',
         save_path: '/assets/faces/100100_faces_a.png',
         url: 'https://example.com/face.png',
       },
       {
+        dataset: 'servants',
+        atlas_id: 100100,
         kind: 'narrowFigure',
+        variant: 'b',
         save_path: '/assets/narrow_figure/100100_narrowFigure_b.png',
         url: 'https://example.com/narrow.png',
+      },
+    ]);
+  });
+
+  it('marks known collectionNo zero records as internal battle forms', () => {
+    const index = buildServantIndex(
+      [
+        { id: 2501400, collectionNo: 413, name: 'Aoko', extraAssets: {} },
+        {
+          id: 2501500,
+          collectionNo: 0,
+          name: 'Super Aoko',
+          extraAssets: {
+            commandNp: { ascension: { 0: 'https://example.com/aoko-np.png' } },
+          },
+        },
+      ],
+      'TW',
+    );
+
+    expect(index.servants[0]).toMatchObject({ selectable: true });
+    expect(index.servants[1]).toMatchObject({
+      selectable: false,
+      formOf: 2501400,
+      formType: 'battleTransformation',
+      recognitionScopes: ['battle'],
+    });
+    expect(index.servants[1].assets.command).toContainEqual({
+      kind: 'commandNp',
+      variant: 'ascension/0',
+      url: 'https://example.com/aoko-np.png',
+    });
+  });
+
+  it('skips unknown collectionNo zero records from bulk recognition downloads', () => {
+    const dirs = {
+      faces: '/assets/faces',
+      narrowFigure: '/assets/narrow_figure',
+      commands: '/assets/commands',
+      commandNp: '/assets/command_np',
+      status: '/assets/status',
+    };
+    const entries = buildServantRecognitionImageList(
+      {
+        servants: [
+          {
+            id: 999,
+            collectionNo: 0,
+            name: 'Unknown internal form',
+            assets: {
+              command: [{ kind: 'commands', variant: 'a', url: 'https://example.com/command.png' }],
+            },
+          },
+        ],
+      },
+      dirs,
+    );
+
+    expect(entries).toEqual([]);
+  });
+
+  it('keeps battle assets but skips selection figures for internal forms', () => {
+    const dirs = {
+      faces: '/assets/faces',
+      narrowFigure: '/assets/narrow_figure',
+      commands: '/assets/commands',
+      commandNp: '/assets/command_np',
+      status: '/assets/status',
+    };
+    const entries = buildServantRecognitionImageList(
+      {
+        servants: [
+          {
+            id: 2501500,
+            collectionNo: 0,
+            name: 'Super Aoko',
+            selectable: false,
+            formOf: 2501400,
+            formType: 'battleTransformation',
+            recognitionScopes: ['battle'],
+            assets: {
+              battle: [
+                {
+                  kind: 'narrowFigure',
+                  variant: '0',
+                  url: 'https://example.com/aoko-narrow.png',
+                },
+              ],
+              command: [
+                {
+                  kind: 'commands',
+                  variant: '0',
+                  url: 'https://example.com/aoko-command.png',
+                },
+              ],
+            },
+          },
+        ],
+      },
+      dirs,
+    );
+
+    expect(entries).toEqual([
+      {
+        dataset: 'servants',
+        atlas_id: 2501500,
+        kind: 'commands',
+        variant: '0',
+        save_path: '/assets/commands/2501500_commands_0.png',
+        url: 'https://example.com/aoko-command.png',
       },
     ]);
   });

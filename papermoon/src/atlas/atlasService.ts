@@ -58,7 +58,10 @@ interface AtlasBasicServantIndex {
 export interface AtlasImageEntry {
   url: string;
   save_path: string;
-  kind?: string;
+  dataset: AtlasDataset;
+  atlas_id: number;
+  kind: string;
+  variant: string;
 }
 
 export interface AtlasImageDownloadResult {
@@ -109,6 +112,10 @@ export interface AtlasCatalogEntry {
 export interface AtlasServantEntry extends AtlasCatalogEntry {
   className?: string;
   rarity?: number;
+  selectable?: boolean;
+  formOf?: number;
+  formType?: 'battleTransformation';
+  recognitionScopes?: 'battle'[];
 }
 
 export interface AtlasCraftEssenceEntry extends AtlasCatalogEntry {
@@ -133,6 +140,11 @@ const SERVANT_RECOGNITION_ASSET_KINDS: AtlasServantRecognitionAssetKind[] = [
   'commandNp',
   'status',
 ];
+
+const INTERNAL_BATTLE_FORMS: Record<number, number> = {
+  600710: 600700,
+  2501500: 2501400,
+};
 
 const INDEX_FILES: Record<AtlasDataset, string> = {
   servants: 'servants.index.json',
@@ -335,7 +347,7 @@ export async function downloadBasicServantData(
   server: AtlasServer = 'TW',
 ): Promise<AtlasBasicServantStatus> {
   await downloadServantNames(server);
-  await downloadBasicServantFaces(server);
+  await Promise.all([downloadBasicServantFaces(server), prepareServantRecognitionAssets(server)]);
   return getBasicServantStatus(server);
 }
 
@@ -343,8 +355,7 @@ export async function downloadBasicServantData(
  * Remove every Atlas catalogue and asset cache. This intentionally leaves the
  * cache empty; downloading is a separate explicit action after UI consent.
  */
-export async function rebuildAtlasCache(
-): Promise<void> {
+export async function rebuildAtlasCache(): Promise<void> {
   if (!isTauri()) {
     throw new Error('Atlas cache rebuild is only available in the desktop app.');
   }
@@ -365,7 +376,10 @@ export async function downloadBasicServantFaces(
   }
 
   const index = await readServantNamesIndex(server, false);
-  const imageList = buildBasicServantFaceDownloadList(index, await getAtlasServantAssetDir('faces'));
+  const imageList = buildBasicServantFaceDownloadList(
+    index,
+    await getAtlasServantAssetDir('faces'),
+  );
   if (imageList.length === 0) {
     return { total: 0, downloaded: 0, skipped: 0, failed: 0, errors: [] };
   }
@@ -413,6 +427,7 @@ export async function prepareServantRecognitionAssets(
       servantRecognitionIndexPath(catalogDir),
       buildServantIndex(payload, server),
     );
+    await invoke('record_atlas_servant_recognition_catalog', { server });
   } finally {
     await remove(result.path).catch(() => {});
   }
@@ -664,7 +679,10 @@ async function getServantRecognitionImageDirs(): Promise<
   Record<AtlasServantRecognitionAssetKind, string>
 > {
   const entries = await Promise.all(
-    SERVANT_RECOGNITION_ASSET_KINDS.map(async (kind) => [kind, await getAtlasServantAssetDir(kind)]),
+    SERVANT_RECOGNITION_ASSET_KINDS.map(async (kind) => [
+      kind,
+      await getAtlasServantAssetDir(kind),
+    ]),
   );
   return Object.fromEntries(entries) as Record<AtlasServantRecognitionAssetKind, string>;
 }
@@ -677,21 +695,28 @@ export function buildServantRecognitionImageList(
   const seen = new Set<string>();
   for (const servant of index.servants || []) {
     if (!servant.id || !servant.assets || Array.isArray(servant.assets)) continue;
+    if (servant.collectionNo === 0 && servant.formOf === undefined) continue;
     const assets = Object.values(servant.assets).flat();
     for (const asset of assets) {
       if (!isServantRecognitionAssetKind(asset.kind)) continue;
+      if (servant.formType === 'battleTransformation' && asset.kind === 'narrowFigure') continue;
       const savePath = `${imageDirs[asset.kind]}/${atlasImageFileName(servant.id, asset)}`;
       if (seen.has(savePath)) continue;
       seen.add(savePath);
-      entries.push({ url: asset.url, save_path: savePath, kind: asset.kind });
+      entries.push({
+        url: asset.url,
+        save_path: savePath,
+        dataset: 'servants',
+        atlas_id: Number(servant.id),
+        kind: asset.kind,
+        variant: asset.variant,
+      });
     }
   }
   return entries;
 }
 
-function isServantRecognitionAssetKind(
-  kind: string,
-): kind is AtlasServantRecognitionAssetKind {
+function isServantRecognitionAssetKind(kind: string): kind is AtlasServantRecognitionAssetKind {
   return SERVANT_RECOGNITION_ASSET_KINDS.includes(kind as AtlasServantRecognitionAssetKind);
 }
 
@@ -778,7 +803,14 @@ export function buildBasicServantFaceDownloadList(
     const savePath = `${imageDir}/${servant.id}_face.png`;
     if (seen.has(savePath)) continue;
     seen.add(savePath);
-    images.push({ url: servant.face, save_path: savePath });
+    images.push({
+      url: servant.face,
+      save_path: savePath,
+      dataset: 'servants',
+      atlas_id: Number(servant.id),
+      kind: 'faces',
+      variant: 'basic',
+    });
   }
   return images;
 }
@@ -806,6 +838,10 @@ function collectImageDownloadList(
           list.push({
             url: asset.url,
             save_path: `${imgDir}/${fileName}`,
+            dataset,
+            atlas_id: Number(id),
+            kind: asset.kind,
+            variant: asset.variant,
           });
         }
       }
@@ -825,6 +861,10 @@ function collectImageDownloadList(
         list.push({
           url: asset.url,
           save_path: `${imgDir}/${atlasImageFileName(String(ce.id), asset)}`,
+          dataset,
+          atlas_id: Number(ce.id),
+          kind: asset.kind,
+          variant: asset.variant,
         });
       }
     }
@@ -835,6 +875,10 @@ function collectImageDownloadList(
           list.push({
             url: asset.url,
             save_path: `${imgDir}/${atlasImageFileName(String(mc.id), asset)}`,
+            dataset,
+            atlas_id: Number(mc.id),
+            kind: asset.kind,
+            variant: asset.variant,
           });
         }
       }
@@ -869,6 +913,10 @@ function selectCraftEssenceImageEntries(
   return wanted.map((asset) => ({
     url: asset.url,
     save_path: `${imgDir}/${atlasImageFileName(String(craftEssence.id), asset)}`,
+    dataset: 'craftEssences' as const,
+    atlas_id: Number(craftEssence.id),
+    kind: asset.kind,
+    variant: asset.variant,
   }));
 }
 
@@ -1050,28 +1098,38 @@ function buildIndex(dataset: AtlasDataset, payload: unknown[], server: AtlasServ
   return buildMysticCodeIndex(payload);
 }
 
-function buildServantIndex(payload: unknown[], server: AtlasServer) {
+export function buildServantIndex(payload: unknown[], server: AtlasServer) {
   return {
     generatedAt: Date.now(),
     recognitionScenes: ['team', 'battle', 'command', 'face', 'status'],
-    servants: payload.filter(isRecord).map((item) => ({
-      id: optionalNumber(item.id),
-      collectionNo: optionalNumber(item.collectionNo),
-      name: optionalString(item.name) || optionalString(item.originalName) || String(item.id ?? ''),
-      originalName: optionalString(item.originalName),
-      nameCn: server === 'CN' ? optionalString(item.name) : undefined,
-      nameTw: server === 'TW' ? optionalString(item.name) : undefined,
-      nameJp: server === 'JP' ? optionalString(item.name) : undefined,
-      className: optionalString(item.className),
-      rarity: optionalNumber(item.rarity),
-      assets: {
-        team: collectServantSceneAssets(item, ['faces', 'status']),
-        battle: collectServantSceneAssets(item, ['narrowFigure']),
-        command: collectServantSceneAssets(item, ['commands']),
-        face: collectServantSceneAssets(item, ['faces']),
-        status: collectServantSceneAssets(item, ['status']),
-      },
-    })),
+    servants: payload.filter(isRecord).map((item) => {
+      const id = optionalNumber(item.id);
+      const collectionNo = optionalNumber(item.collectionNo);
+      const formOf = id === undefined ? undefined : INTERNAL_BATTLE_FORMS[id];
+      return {
+        id,
+        collectionNo,
+        name:
+          optionalString(item.name) || optionalString(item.originalName) || String(item.id ?? ''),
+        originalName: optionalString(item.originalName),
+        nameCn: server === 'CN' ? optionalString(item.name) : undefined,
+        nameTw: server === 'TW' ? optionalString(item.name) : undefined,
+        nameJp: server === 'JP' ? optionalString(item.name) : undefined,
+        className: optionalString(item.className),
+        rarity: optionalNumber(item.rarity),
+        selectable: collectionNo !== 0,
+        formOf,
+        formType: formOf === undefined ? undefined : ('battleTransformation' as const),
+        recognitionScopes: formOf === undefined ? undefined : ['battle' as const],
+        assets: {
+          team: collectServantSceneAssets(item, ['faces', 'status']),
+          battle: collectServantSceneAssets(item, ['narrowFigure']),
+          command: collectServantSceneAssets(item, ['commands', 'commandNp']),
+          face: collectServantSceneAssets(item, ['faces']),
+          status: collectServantSceneAssets(item, ['status']),
+        },
+      };
+    }),
   };
 }
 

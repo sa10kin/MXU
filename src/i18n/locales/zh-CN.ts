@@ -124,7 +124,8 @@ export default {
     title: 'Atlas',
     server: '图鉴服务器',
     basicServants: '从者基础资料（{{server}}）',
-    basicServantsHint: '下载从者名称、基础信息与头像；不下载战斗识别素材或概念礼装数据。',
+    basicServantsHint:
+      '下载从者名称、基础信息、头像与识别素材索引；不下载战斗识别图片或概念礼装数据。',
     status: '状态',
     loading: '正在读取缓存',
     available: '已缓存 {{count}} 名从者',
@@ -141,12 +142,14 @@ export default {
     rebuildDeletesServantAssets: '从者头像及已下载的战斗识别素材',
     rebuildDeletesOtherAssets: '概念礼装、魔术礼装等其他 Atlas 图片缓存',
     rebuildCacheConfirm: '清空缓存',
-    downloadAllServantAssets: '下载全从者素材',
+    downloadAllServantAssets: '下载当前服全从者素材',
+    updateBasicDataFirst: '请先下载或更新当前服务器的基础资料。',
     preparingRecognitionAssets: '正在准备素材清单',
     noRecognitionAssets: '当前服务器没有可下载的从者识别素材。',
     recognitionAssetsPrepared: '已准备 {{count}} 个从者识别素材文件；下载时会跳过已缓存文件。',
-    recognitionAssetsResult: '素材下载完成：新增 {{downloaded}}，已存在 {{skipped}}，失败 {{failed}}。',
-    downloadAllServantAssetsTitle: '下载全从者素材？',
+    recognitionAssetsResult:
+      '素材下载完成：新增 {{downloaded}}，已存在 {{skipped}}，失败 {{failed}}。',
+    downloadAllServantAssetsTitle: '下载当前服全从者素材？',
     downloadAllServantAssetsMessage: '将增量下载 {{count}} 个从者素材文件。',
     downloadAllServantAssetsWarning: '可能占用大量磁盘空间，下载时间取决于网络环境。',
     downloadAllServantAssetsKinds:
@@ -155,7 +158,7 @@ export default {
     downloadProgress: '已下载 {{percent}}%（点击取消）',
     cancellingRecognitionAssets: '正在取消下载',
     futureAssetHint:
-      '头像按从者共用素材池缓存。自动任务目前仅适配繁中服；全量从者识别素材可手动下载，任务预检按需下载将在自动战斗迁移后接入。',
+      '图鉴索引按服务器保存，图片按从者共用素材池缓存。自动任务目前仅适配繁中服；当前服全从者识别素材可手动下载，任务预检按需下载将在自动战斗迁移后接入。',
     error: '图鉴数据操作失败：{{message}}',
   },
 

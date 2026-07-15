@@ -123,7 +123,8 @@ export default {
     title: 'Atlas',
     server: '圖鑑伺服器',
     basicServants: '從者基礎資料（{{server}}）',
-    basicServantsHint: '下載從者名稱、基礎資訊與頭像；不下載戰鬥識別素材或概念禮裝資料。',
+    basicServantsHint:
+      '下載從者名稱、基礎資訊、頭像與識別素材索引；不下載戰鬥識別圖片或概念禮裝資料。',
     status: '狀態',
     loading: '正在讀取快取',
     available: '已快取 {{count}} 名從者',
@@ -134,18 +135,21 @@ export default {
     updating: '正在更新',
     rebuildCache: '重建 Atlas 快取',
     rebuildCacheTitle: '重建 Atlas 快取？',
-    rebuildCacheMessage: '確認後會刪除本機全部 Atlas 快取並重新整理狀態；不會自動下載任何資料或圖片。',
+    rebuildCacheMessage:
+      '確認後會刪除本機全部 Atlas 快取並重新整理狀態；不會自動下載任何資料或圖片。',
     rebuildCacheWarning: '此操作無法復原，請謹慎確認',
     rebuildDeletesCatalogues: 'TW、CN、JP 的基礎圖鑑索引',
     rebuildDeletesServantAssets: '從者頭像及已下載的戰鬥識別素材',
     rebuildDeletesOtherAssets: '概念禮裝、魔術禮裝等其他 Atlas 圖片快取',
     rebuildCacheConfirm: '清空快取',
-    downloadAllServantAssets: '下載全部從者素材',
+    downloadAllServantAssets: '下載目前伺服器全從者素材',
+    updateBasicDataFirst: '請先下載或更新目前伺服器的基礎資料。',
     preparingRecognitionAssets: '正在準備素材清單',
     noRecognitionAssets: '目前伺服器沒有可下載的從者識別素材。',
     recognitionAssetsPrepared: '已準備 {{count}} 個從者識別素材檔案；下載時會略過已快取檔案。',
-    recognitionAssetsResult: '素材下載完成：新增 {{downloaded}}，已存在 {{skipped}}，失敗 {{failed}}。',
-    downloadAllServantAssetsTitle: '下載全部從者素材？',
+    recognitionAssetsResult:
+      '素材下載完成：新增 {{downloaded}}，已存在 {{skipped}}，失敗 {{failed}}。',
+    downloadAllServantAssetsTitle: '下載目前伺服器全從者素材？',
     downloadAllServantAssetsMessage: '將增量下載 {{count}} 個從者素材檔案。',
     downloadAllServantAssetsWarning: '可能占用大量磁碟空間，下載時間取決於網路環境。',
     downloadAllServantAssetsKinds:
@@ -154,7 +158,7 @@ export default {
     downloadProgress: '已下載 {{percent}}%（點擊取消）',
     cancellingRecognitionAssets: '正在取消下載',
     futureAssetHint:
-      '頭像會依從者共用素材池快取。自動任務目前僅適配繁中服；完整從者識別素材可手動下載，任務預檢依需求下載將在自動戰鬥遷移後接入。',
+      '圖鑑索引依伺服器儲存，圖片依從者共用素材池快取。自動任務目前僅適配繁中服；目前伺服器的全從者識別素材可手動下載，任務預檢依需求下載將在自動戰鬥遷移後接入。',
     error: '圖鑑資料操作失敗：{{message}}',
   },
 

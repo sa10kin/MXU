@@ -127,7 +127,7 @@ export default {
     server: '図鑑サーバー',
     basicServants: 'サーヴァント基本データ（{{server}}）',
     basicServantsHint:
-      'サーヴァント名・基本情報・顔アイコンをダウンロードします。戦闘認識素材と概念礼装データはダウンロードしません。',
+      'サーヴァント名・基本情報・顔アイコン・認識素材インデックスを取得します。戦闘認識画像と概念礼装データはダウンロードしません。',
     status: '状態',
     loading: 'キャッシュを読み込み中',
     available: '{{count}} 騎のサーヴァントをキャッシュ済み',
@@ -138,28 +138,32 @@ export default {
     updating: '更新中',
     rebuildCache: 'Atlas キャッシュを再構築',
     rebuildCacheTitle: 'Atlas キャッシュを再構築しますか？',
-    rebuildCacheMessage: '確認すると、ローカルのすべての Atlas キャッシュを削除して状態を更新します。データや画像は自動で再取得しません。',
+    rebuildCacheMessage:
+      '確認すると、ローカルのすべての Atlas キャッシュを削除して状態を更新します。データや画像は自動で再取得しません。',
     rebuildCacheWarning: 'この操作は元に戻せません。慎重に確認してください。',
     rebuildDeletesCatalogues: 'TW、CN、JP の基本図鑑インデックス',
     rebuildDeletesServantAssets: 'サーヴァントの顔アイコンと取得済みの戦闘認識素材',
     rebuildDeletesOtherAssets: '概念礼装・魔術礼装など、その他の Atlas 画像キャッシュ',
     rebuildCacheConfirm: 'キャッシュを消去',
-    downloadAllServantAssets: '全サーヴァント素材をダウンロード',
+    downloadAllServantAssets: '現在のサーバーの全サーヴァント素材を取得',
+    updateBasicDataFirst: '先に現在のサーバーの基本データをダウンロードまたは更新してください。',
     preparingRecognitionAssets: '素材リストを準備中',
     noRecognitionAssets: 'このサーバーにはダウンロード可能なサーヴァント認識素材がありません。',
     recognitionAssetsPrepared:
       '{{count}} 件のサーヴァント認識素材を準備しました。ダウンロード時は既存ファイルをスキップします。',
-    recognitionAssetsResult: '素材ダウンロード完了: 新規 {{downloaded}}、既存 {{skipped}}、失敗 {{failed}}。',
-    downloadAllServantAssetsTitle: '全サーヴァント素材をダウンロードしますか？',
+    recognitionAssetsResult:
+      '素材ダウンロード完了: 新規 {{downloaded}}、既存 {{skipped}}、失敗 {{failed}}。',
+    downloadAllServantAssetsTitle: '現在のサーバーの全サーヴァント素材を取得しますか？',
     downloadAllServantAssetsMessage: '{{count}} 件のサーヴァント素材を増分ダウンロードします。',
-    downloadAllServantAssetsWarning: '大量のディスク容量を使用する場合があります。所要時間はネットワーク環境に依存します。',
+    downloadAllServantAssetsWarning:
+      '大量のディスク容量を使用する場合があります。所要時間はネットワーク環境に依存します。',
     downloadAllServantAssetsKinds:
       '素材は faces、narrowfigure、commands、commandnp、status に分類して保存されます。',
     downloadAllServantAssetsConfirm: '一括ダウンロードを開始',
     downloadProgress: '{{percent}}% ダウンロード済み（クリックでキャンセル）',
     cancellingRecognitionAssets: 'ダウンロードを中止しています',
     futureAssetHint:
-      '顔アイコンはサーヴァントごとの共有素材プールにキャッシュされます。自動タスクは現在、繁体字中国語版だけに対応しています。サーヴァント認識素材は手動で一括取得でき、タスク事前チェックでの必要時取得は自動戦闘の移行後に追加します。',
+      '図鑑インデックスはサーバー別、画像はサーヴァント共通の素材プールに保存されます。自動タスクは現在、繁体字中国語版だけに対応しています。現在のサーバーの認識素材は手動で一括取得でき、タスク事前チェックでの必要時取得は自動戦闘の移行後に追加します。',
     error: '図鑑データの操作に失敗しました: {{message}}',
   },
 

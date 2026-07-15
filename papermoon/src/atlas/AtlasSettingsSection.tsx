@@ -14,7 +14,6 @@ import {
   getAtlasCatalogDir,
   getBasicServantStatus,
   getServantRecognitionStatus,
-  prepareServantRecognitionAssets,
   rebuildAtlasCache,
   type AtlasBasicServantStatus,
   type AtlasImageDownloadResult,
@@ -34,7 +33,6 @@ export function AtlasSettingsSection() {
   const [loading, setLoading] = useState(true);
   const [basicUpdating, setBasicUpdating] = useState(false);
   const [rebuilding, setRebuilding] = useState(false);
-  const [recognitionPreparing, setRecognitionPreparing] = useState(false);
   const [recognitionDownloading, setRecognitionDownloading] = useState(false);
   const [recognitionCancelling, setRecognitionCancelling] = useState(false);
   const [recognitionProgress, setRecognitionProgress] = useState<AtlasImageProgressEvent | null>(
@@ -92,6 +90,7 @@ export function AtlasSettingsSection() {
     setError(null);
     try {
       setStatus(await downloadBasicServantData(server));
+      setRecognitionStatus(await getServantRecognitionStatus(server));
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : String(reason));
     } finally {
@@ -114,25 +113,18 @@ export function AtlasSettingsSection() {
   }, [refresh]);
 
   const requestRecognitionDownload = useCallback(async () => {
-    setRecognitionPreparing(true);
     setError(null);
     setRecognitionResult(null);
-    try {
-      const nextStatus = recognitionStatus?.prepared
-        ? recognitionStatus
-        : await prepareServantRecognitionAssets(server);
-      setRecognitionStatus(nextStatus);
-      if (nextStatus.total === 0) {
-        setError(t('atlas.noRecognitionAssets'));
-        return;
-      }
-      setShowRecognitionConfirm(true);
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : String(reason));
-    } finally {
-      setRecognitionPreparing(false);
+    if (!recognitionStatus?.prepared) {
+      setError(t('atlas.updateBasicDataFirst'));
+      return;
     }
-  }, [recognitionStatus, server, t]);
+    if (recognitionStatus.total === 0) {
+      setError(t('atlas.noRecognitionAssets'));
+      return;
+    }
+    setShowRecognitionConfirm(true);
+  }, [recognitionStatus, t]);
 
   const downloadRecognitionAssets = useCallback(async () => {
     setShowRecognitionConfirm(false);
@@ -168,9 +160,8 @@ export function AtlasSettingsSection() {
     }
   }, []);
 
-  const ready = status?.available ?? false;
-  const hasActiveOperation =
-    basicUpdating || rebuilding || recognitionPreparing || recognitionDownloading;
+  const ready = (status?.available ?? false) && (recognitionStatus?.prepared ?? false);
+  const hasActiveOperation = basicUpdating || rebuilding || recognitionDownloading;
   const completedRecognitionAssets = recognitionProgress
     ? recognitionProgress.downloaded + recognitionProgress.skipped + recognitionProgress.failed
     : 0;
@@ -264,23 +255,15 @@ export function AtlasSettingsSection() {
                 ? cancelRecognitionDownload()
                 : requestRecognitionDownload())
             }
-            disabled={
-              loading || basicUpdating || rebuilding || recognitionPreparing || recognitionCancelling
-            }
+            disabled={loading || basicUpdating || rebuilding || recognitionCancelling}
             className="inline-flex items-center gap-2 rounded-lg bg-bg-tertiary px-4 py-2 text-sm font-medium text-text-secondary transition-colors hover:bg-bg-hover disabled:cursor-not-allowed disabled:opacity-60"
           >
-            <Database
-              className={
-                recognitionPreparing || recognitionDownloading ? 'h-4 w-4 animate-pulse' : 'h-4 w-4'
-              }
-            />
-            {recognitionPreparing
-              ? t('atlas.preparingRecognitionAssets')
-              : recognitionCancelling
-                ? t('atlas.cancellingRecognitionAssets')
-                : recognitionDownloading
-                  ? t('atlas.downloadProgress', { percent: recognitionPercent })
-                  : t('atlas.downloadAllServantAssets')}
+            <Database className={recognitionDownloading ? 'h-4 w-4 animate-pulse' : 'h-4 w-4'} />
+            {recognitionCancelling
+              ? t('atlas.cancellingRecognitionAssets')
+              : recognitionDownloading
+                ? t('atlas.downloadProgress', { percent: recognitionPercent })
+                : t('atlas.downloadAllServantAssets')}
           </button>
           <button
             type="button"
