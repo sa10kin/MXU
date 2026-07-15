@@ -433,6 +433,10 @@ pub struct WebView2DirInfo {
 pub struct AtlasImageEntry {
     pub url: String,
     pub save_path: String,
+    pub dataset: String,
+    pub atlas_id: i64,
+    pub kind: String,
+    pub variant: String,
 }
 
 #[derive(Clone, Serialize)]
