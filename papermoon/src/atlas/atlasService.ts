@@ -212,10 +212,6 @@ function servantRecognitionIndexPath(catalogDir: string) {
   return joinPath(catalogDir, SERVANT_RECOGNITION_INDEX_FILE);
 }
 
-function manifestPath(cacheDir: string) {
-  return joinPath(cacheDir, 'manifest.json');
-}
-
 function exportUrl(server: AtlasServer, dataset: AtlasDataset) {
   return `${ATLAS_API_BASE}/export/${server}/${EXPORT_FILES[dataset]}`;
 }
@@ -256,16 +252,7 @@ export async function downloadAtlasDataset(
   }
 
   const index = buildIndex(dataset, payload, server);
-  const updatedAt = Date.now();
-  const metadata = {
-    server,
-    dataset,
-    sourceUrl: url,
-    updatedAt,
-    count: payload.length,
-  };
-
-  await writeAtlasIndexAtomically(cacheDir, dataset, metadata, index);
+  await writeAtlasIndexAtomically(cacheDir, dataset, index);
   const status = await readDatasetStatus(cacheDir, dataset);
   return {
     ...status,
@@ -1028,14 +1015,8 @@ async function readDatasetStatus(
   }
 }
 
-async function writeAtlasIndexAtomically(
-  cacheDir: string,
-  dataset: AtlasDataset,
-  metadata: { updatedAt?: number; count?: number },
-  index: unknown,
-) {
-  const { exists, mkdir, rename, writeTextFile, remove, readTextFile } =
-    await import('@tauri-apps/plugin-fs');
+async function writeAtlasIndexAtomically(cacheDir: string, dataset: AtlasDataset, index: unknown) {
+  const { exists, mkdir, rename, writeTextFile, remove } = await import('@tauri-apps/plugin-fs');
   if (!(await exists(cacheDir))) {
     await mkdir(cacheDir, { recursive: true });
   }
@@ -1046,15 +1027,6 @@ async function writeAtlasIndexAtomically(
   try {
     await writeTextFile(idxTmp, JSON.stringify(index, null, 2));
     await rename(idxTmp, idxPath);
-
-    const manifestFile = manifestPath(cacheDir);
-    const manifest = await readManifest(manifestFile, readTextFile);
-    manifest.datasets[dataset] = {
-      updatedAt: metadata.updatedAt ?? Date.now(),
-      count: metadata.count ?? 0,
-      indexFile: INDEX_FILES[dataset],
-    };
-    await writeTextFile(manifestFile, JSON.stringify(manifest, null, 2));
   } catch (err) {
     await remove(idxTmp).catch(() => {});
     log.warn('Atlas cache write failed; existing cache was left untouched.', err);
@@ -1075,20 +1047,6 @@ async function writeJsonFileAtomically(cacheDir: string, path: string, data: unk
   } catch (err) {
     await remove(tmp).catch(() => {});
     throw err;
-  }
-}
-
-async function readManifest(
-  path: string,
-  readTextFile: (path: string) => Promise<string>,
-): Promise<{ version: string; datasets: Record<string, unknown> }> {
-  try {
-    return JSON.parse(await readTextFile(path)) as {
-      version: string;
-      datasets: Record<string, unknown>;
-    };
-  } catch {
-    return { version: '1.0', datasets: {} };
   }
 }
 

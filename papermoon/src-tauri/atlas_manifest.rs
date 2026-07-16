@@ -142,6 +142,7 @@ fn same_asset_key(left: &ManifestAsset, right: &ManifestAsset) -> bool {
 fn validate_manifest(manifest: &Manifest) -> Result<(), String> {
     let mut files = HashMap::with_capacity(manifest.assets.len() + manifest.catalogs.len());
     for catalog in &manifest.catalogs {
+        validate_relative_file(&catalog.file)?;
         if files.insert(catalog.file.as_str(), "catalog").is_some() {
             return Err(format!("Duplicate Atlas manifest file: {}", catalog.file));
         }
@@ -149,6 +150,7 @@ fn validate_manifest(manifest: &Manifest) -> Result<(), String> {
 
     let mut asset_keys = HashMap::with_capacity(manifest.assets.len());
     for asset in &manifest.assets {
+        validate_relative_file(&asset.file)?;
         if files.insert(asset.file.as_str(), "asset").is_some() {
             return Err(format!("Duplicate Atlas manifest file: {}", asset.file));
         }
@@ -164,6 +166,19 @@ fn validate_manifest(manifest: &Manifest) -> Result<(), String> {
                 existing, asset.file
             ));
         }
+    }
+    Ok(())
+}
+
+fn validate_relative_file(file: &str) -> Result<(), String> {
+    if file.is_empty()
+        || file.starts_with('/')
+        || file.contains('\\')
+        || file
+            .split('/')
+            .any(|part| part.is_empty() || part == "." || part == "..")
+    {
+        return Err(format!("Unsafe Atlas manifest file: {}", file));
     }
     Ok(())
 }
@@ -383,6 +398,39 @@ mod tests {
         conflicting.variant = "ascension/2".into();
         let error = record_assets(root.path(), vec![conflicting]).unwrap_err();
         assert!(error.contains("conflicts"), "unexpected error: {error}");
+    }
+
+    #[test]
+    fn refuses_unsafe_manifest_paths() {
+        for file in ["../escape.png", "/abs.png", "a//b.png", "a\\b.png"] {
+            let root = tempfile::tempdir().unwrap();
+            let error = record_assets(root.path(), vec![asset(file, 10)]).unwrap_err();
+            assert!(error.contains("Unsafe"), "unexpected error: {error}");
+            assert!(!root.path().join(MANIFEST_FILE).exists());
+        }
+    }
+
+    #[test]
+    fn failed_update_keeps_existing_manifest() {
+        let root = tempfile::tempdir().unwrap();
+        record_assets(root.path(), vec![asset("assets/a.png", 10)]).unwrap();
+        let before = std::fs::read(root.path().join(MANIFEST_FILE)).unwrap();
+
+        let mut conflicting = asset("assets/a.png", 20);
+        conflicting.variant = "ascension/2".into();
+        record_assets(root.path(), vec![conflicting]).unwrap_err();
+
+        assert_eq!(
+            std::fs::read(root.path().join(MANIFEST_FILE)).unwrap(),
+            before
+        );
+    }
+
+    #[test]
+    fn empty_batch_does_not_create_manifest() {
+        let root = tempfile::tempdir().unwrap();
+        record_assets(root.path(), Vec::new()).unwrap();
+        assert!(!root.path().join(MANIFEST_FILE).exists());
     }
 
     #[test]
