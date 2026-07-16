@@ -18,6 +18,12 @@ import { isPretaskName, getPretaskItem, buildPretaskDef } from '@/types/pretasks
 import { getInterfaceLangKey } from '@/i18n';
 import clsx from 'clsx';
 import { loggers } from '@/utils/logger';
+import {
+  AutoBattleEditor,
+  getAutoBattleSummary,
+  PAPERMOON_AUTO_BATTLE_TASK,
+  PAPERMOON_BATTLE_PLAN_OPTION,
+} from '@papermoon/automation/AutoBattleEditor';
 
 /** 选项预览标签组件 */
 function OptionPreviewTag({
@@ -529,6 +535,8 @@ export function TaskItem({ instanceId, task }: TaskItemProps) {
     : '';
   const displayName = task.customName || originalLabel;
   const hasOptions = !!taskDef?.option && taskDef.option.length > 0;
+  const isPaperMoonAutoBattle =
+    projectInterface?.name === 'PaperMoon' && task.taskName === PAPERMOON_AUTO_BATTLE_TASK;
   // 判断是否有描述内容（包括正在加载的情况）
   const hasDescription = !!resolvedDescription.html || resolvedDescription.loading;
   // 有选项或有描述时都可以展开
@@ -538,6 +546,31 @@ export function TaskItem({ instanceId, task }: TaskItemProps) {
   const optionPreviews = useMemo(() => {
     if (!hasOptions) return [];
     if (!projectInterface?.option && !isMxuTask) return [];
+
+    if (isPaperMoonAutoBattle) {
+      const summary = getAutoBattleSummary(task.optionValues[PAPERMOON_BATTLE_PLAN_OPTION]);
+      const summaryLabel = (key: string) => resolveI18nText(`$auto_battle.summary.${key}`, langKey);
+      return [
+        {
+          key: 'plan',
+          label: summaryLabel('plan'),
+          value: summary.name || summaryLabel('unnamed'),
+          type: 'input' as const,
+        },
+        {
+          key: 'repeat',
+          label: summaryLabel('repeat'),
+          value: summary.repeatCount,
+          type: 'input' as const,
+        },
+        {
+          key: 'recovery',
+          label: summaryLabel('recovery'),
+          value: resolveI18nText(`$auto_battle.editor.recovery.${summary.recoveryItem}`, langKey),
+          type: 'input' as const,
+        },
+      ];
+    }
 
     const previews: {
       key: string;
@@ -627,6 +660,7 @@ export function TaskItem({ instanceId, task }: TaskItemProps) {
     langKey,
     resolveI18nText,
     isMxuTask,
+    isPaperMoonAutoBattle,
     t,
   ]);
 
@@ -987,7 +1021,14 @@ export function TaskItem({ instanceId, task }: TaskItemProps) {
                 </Tooltip>
               )}
               {/* 选项列表 - 仅在有选项时显示 */}
-              {hasOptions && (
+              {hasOptions && isPaperMoonAutoBattle ? (
+                <AutoBattleEditor
+                  instanceId={instanceId}
+                  taskId={task.id}
+                  value={task.optionValues[PAPERMOON_BATTLE_PLAN_OPTION]}
+                  disabled={!canEditOptions || isIncompatible}
+                />
+              ) : hasOptions ? (
                 <OptionListRenderer
                   instanceId={instanceId}
                   taskId={task.id}
@@ -997,7 +1038,7 @@ export function TaskItem({ instanceId, task }: TaskItemProps) {
                   currentControllerName={currentControllerName}
                   currentResourceName={currentResourceName}
                 />
-              )}
+              ) : null}
             </div>
           </div>
         </div>
