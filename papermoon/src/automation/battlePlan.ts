@@ -10,7 +10,7 @@ export interface BattlePlan {
 
 export interface PartySlot {
   slot: number;
-  servantId: number;
+  servantId?: number;
   craftEssenceId?: number;
   support?: boolean;
 }
@@ -75,6 +75,14 @@ export function validateBattlePlan(plan: BattlePlan): string[] {
   if (!Array.isArray(plan.party) || plan.party.length < 1 || plan.party.length > 6) {
     errors.push('party');
   }
+  if (plan.party?.filter((member) => member.support).length > 1) errors.push('party.support');
+  plan.party?.forEach((member, index) => {
+    if (member.support) {
+      if (member.servantId || member.craftEssenceId) errors.push(`party[${index}].support`);
+    } else if (!Number.isInteger(member.servantId) || (member.servantId ?? 0) <= 0) {
+      errors.push(`party[${index}].servantId`);
+    }
+  });
   if (!Number.isInteger(plan.maxTurns) || plan.maxTurns < 1 || plan.maxTurns > 100) {
     errors.push('maxTurns');
   }

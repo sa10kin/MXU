@@ -46,7 +46,7 @@ export interface AtlasBasicServantStatus {
   error?: string;
 }
 
-interface AtlasBasicServantEntry extends AtlasServantEntry {
+export interface AtlasBasicServantEntry extends AtlasServantEntry {
   face?: string;
 }
 
@@ -329,11 +329,58 @@ export async function getBasicServantStatus(
   }
 }
 
+export async function getBasicServants(
+  server: AtlasServer = 'TW',
+): Promise<AtlasBasicServantEntry[]> {
+  const index = await readServantNamesIndex(server, false);
+  return Array.isArray(index?.servants) ? index.servants : [];
+}
+
+export async function getCraftEssences(
+  server: AtlasServer = 'TW',
+): Promise<AtlasCraftEssenceEntry[]> {
+  const index = await readIndex(server, 'craftEssences');
+  return index?.craftEssences
+    ? enrichLocalizedNames(server, 'craftEssences', index.craftEssences)
+    : [];
+}
+
+export async function ensureCraftEssences(
+  server: AtlasServer = 'TW',
+): Promise<AtlasCraftEssenceEntry[]> {
+  const cached = await getCraftEssences(server);
+  if (cached.length > 0) return cached;
+  await downloadAtlasDataset(server, 'craftEssences');
+  return getCraftEssences(server);
+}
+
+export async function readCachedBasicServantFace(id: number): Promise<Uint8Array | null> {
+  if (!isTauri() || id <= 0) return null;
+  const path = `${await getAtlasServantAssetDir('faces')}/${id}_face.png`;
+  const { exists, readFile } = await import('@tauri-apps/plugin-fs');
+  return (await exists(path)) ? readFile(path) : null;
+}
+
+export async function readCachedCraftEssenceFace(
+  server: AtlasServer,
+  craftEssence: AtlasCraftEssenceEntry,
+): Promise<Uint8Array | null> {
+  if (!isTauri() || !craftEssence.id) return null;
+  const assets = Array.isArray(craftEssence.assets) ? craftEssence.assets : [];
+  const asset =
+    selectCraftEssenceAsset(assets, 'equipFaces') ?? selectCraftEssenceAsset(assets, 'faces');
+  if (!asset) return null;
+  const dir = await getAtlasImageDir(server, 'craftEssences');
+  const path = `${dir}/${atlasImageFileName(craftEssence.id, asset)}`;
+  const { exists, readFile } = await import('@tauri-apps/plugin-fs');
+  return (await exists(path)) ? readFile(path) : null;
+}
+
 /** Download or refresh a server catalogue and its shared servant face images. */
 export async function downloadBasicServantData(
   server: AtlasServer = 'TW',
 ): Promise<AtlasBasicServantStatus> {
-  await downloadServantNames(server);
+  await downloadServantNamesAllServers();
   await Promise.all([downloadBasicServantFaces(server), prepareServantRecognitionAssets(server)]);
   return getBasicServantStatus(server);
 }

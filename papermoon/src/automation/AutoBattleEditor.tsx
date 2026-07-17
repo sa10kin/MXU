@@ -13,6 +13,16 @@ import {
   type BattlePlan,
 } from './battlePlan';
 import { recoveryFruitQuantity, type RecoveryItem } from './loopPolicy';
+import { PartyEditor } from './PartyEditor';
+import { SupportEditor } from './SupportEditor';
+import {
+  emptySupportPolicy,
+  parseSupportPolicy,
+  serializeSupportPolicy,
+  supportErrorsForParty,
+  validateSupportPolicy,
+  type SupportPolicy,
+} from './supportPolicy';
 
 export const PAPERMOON_AUTO_BATTLE_TASK = 'auto_battle';
 export const PAPERMOON_BATTLE_PLAN_OPTION = 'battle_plan';
@@ -20,6 +30,7 @@ export const PAPERMOON_BATTLE_PLAN_OPTION = 'battle_plan';
 type Tab = 'basic' | 'support' | 'party' | 'battle';
 const DEFAULT_VALUES = {
   json: serializeBattlePlan(emptyBattlePlan()),
+  support: serializeSupportPolicy(emptySupportPolicy()),
   repeatCount: '1',
   recoveryItem: 'none',
 };
@@ -28,6 +39,7 @@ function inputValues(value: OptionValue | undefined): Record<string, string> {
   if (value?.type !== 'input') return DEFAULT_VALUES;
   return {
     json: value.values.json || DEFAULT_VALUES.json,
+    support: value.values.support || DEFAULT_VALUES.support,
     repeatCount: value.values.repeatCount || DEFAULT_VALUES.repeatCount,
     recoveryItem: value.values.recoveryItem || DEFAULT_VALUES.recoveryItem,
   };
@@ -71,6 +83,20 @@ export function AutoBattleEditor({
       return { plan: emptyBattlePlan(), errors: ['json'], parseError: true };
     }
   }, [values.json]);
+  const supportParsed = useMemo(() => {
+    try {
+      const policy = parseSupportPolicy(values.support);
+      return { policy, errors: validateSupportPolicy(policy) };
+    } catch {
+      return { policy: emptySupportPolicy(), errors: ['json'] };
+    }
+  }, [values.support]);
+  const errors = [
+    ...parsed.errors,
+    ...supportErrorsForParty(parsed.plan.party, supportParsed.errors).map(
+      (error) => `support.${error}`,
+    ),
+  ];
   const fruitQuantity = recoveryFruitQuantity(values.recoveryItem as RecoveryItem);
   const maxFruitQuantity = Math.max(0, Number(values.repeatCount) || 0) * fruitQuantity;
 
@@ -80,6 +106,8 @@ export function AutoBattleEditor({
       values: { ...values, ...next },
     });
   const commitPlan = (plan: BattlePlan) => commitValues({ json: serializeBattlePlan(plan) });
+  const commitSupport = (policy: SupportPolicy) =>
+    commitValues({ support: serializeSupportPolicy(policy) });
 
   const tabs: { key: Tab; label: string }[] = [
     { key: 'basic', label: text('tab.basic') },
@@ -176,6 +204,21 @@ export function AutoBattleEditor({
             )}
           </section>
         </div>
+      ) : tab === 'support' ? (
+        <SupportEditor
+          policy={supportParsed.policy}
+          disabled={disabled}
+          text={text}
+          onChange={commitSupport}
+        />
+      ) : tab === 'party' ? (
+        <PartyEditor
+          plan={parsed.plan}
+          supportPolicy={supportParsed.policy}
+          disabled={disabled}
+          text={text}
+          onChange={commitPlan}
+        />
       ) : (
         <div className="rounded-xl border border-dashed border-border p-8 text-center text-sm text-text-muted">
           {text(`placeholder.${tab}`)}
@@ -184,18 +227,18 @@ export function AutoBattleEditor({
 
       <div
         className={`flex items-center gap-2 text-xs ${
-          parsed.errors.length === 0 ? 'text-success' : 'text-warning'
+          errors.length === 0 ? 'text-success' : 'text-warning'
         }`}
       >
-        {parsed.errors.length === 0 ? (
+        {errors.length === 0 ? (
           <CheckCircle2 className="h-4 w-4" />
         ) : (
           <AlertCircle className="h-4 w-4" />
         )}
         <span>
-          {parsed.errors.length === 0
+          {errors.length === 0
             ? text('status.valid')
-            : `${text('status.incomplete')} ${parsed.errors.join(', ')}`}
+            : `${text('status.incomplete')} ${errors.join(', ')}`}
         </span>
       </div>
     </div>
