@@ -47,6 +47,38 @@ function cleanupTaskState(instanceId: string) {
   state.clearScheduleExecution(instanceId);
 }
 
+/**
+ * 任务队列自然结束后回收本轮 agent 子进程，避免每次启动累积一个存活 agent。
+ *
+ * 必须先等待 tasker 完全空闲：在控制器动作收尾期间销毁 AgentClient 会触发
+ * MaaFramework 原生崩溃（EventDispatcher 通知已释放的订阅者）。等待与清理
+ * 时序与手动停止路径（stopInstanceTasks）保持一致；超时则跳过本轮回收。
+ */
+export async function stopAgentsAfterTasksCompleted(instanceId: string): Promise<void> {
+  if (stopPromises.has(instanceId)) {
+    // 手动停止流程正在进行，由其负责 agent 清理
+    return;
+  }
+  const agentConfigs = normalizeAgentConfigs(useAppStore.getState().projectInterface?.agent);
+  if (!agentConfigs || agentConfigs.length === 0) {
+    return;
+  }
+  try {
+    const start = Date.now();
+    while (Date.now() - start < STOP_TIMEOUT_MS) {
+      const running = await maaService.isRunning(instanceId);
+      if (!running) {
+        await maaService.stopAgent(instanceId);
+        return;
+      }
+      await new Promise((resolve) => setTimeout(resolve, STOP_POLL_INTERVAL_MS));
+    }
+    log.warn(`[agent-cleanup#${instanceId}] 等待任务空闲超时，跳过本轮 agent 回收`);
+  } catch (err) {
+    log.warn(`[agent-cleanup#${instanceId}] 任务结束后回收 agent 失败:`, err);
+  }
+}
+
 export async function stopInstanceTasks(instanceId: string): Promise<boolean> {
   const existing = stopPromises.get(instanceId);
   if (existing) {

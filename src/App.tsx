@@ -27,6 +27,7 @@ import {
   checkAndPrepareDownload,
   maaService,
   proxySettingsForUpdateDownload,
+  stopAgentsAfterTasksCompleted,
   stopInstanceTasksAndExitApp,
 } from '@/services';
 import { loadIconAsDataUrl } from '@/services/contentResolver';
@@ -1232,7 +1233,11 @@ function App() {
       kind === 'task-progress' ||
       kind === 'tasks-completed';
 
-    const handleStateChanged = (_instanceId: string, kind: string) => {
+    const handleStateChanged = (instanceId: string, kind: string) => {
+      if (kind === 'tasks-completed') {
+        // 任务自然结束后回收 agent 子进程（等待空闲后执行，见 taskStopService）
+        void stopAgentsAfterTasksCompleted(instanceId);
+      }
       if (isTaskKind(kind)) pendingTaskKind = true;
       if (debounceTimer) clearTimeout(debounceTimer);
       const shouldSyncRunning = pendingTaskKind;
