@@ -41,6 +41,11 @@ import { stopInstanceTasks } from '@/services/taskStopService';
 import { isTauri } from '@/utils/paths';
 import { onStateChanged } from '@/services/wsService';
 import { buildPiEnvVars } from '@/utils/piEnv';
+import {
+  PAPERMOON_AUTO_BATTLE_TASK,
+  PAPERMOON_BATTLE_PLAN_OPTION,
+} from '@papermoon/automation/AutoBattleEditor';
+import { ensureAutoBattleAssets } from '@papermoon/automation/battleAssets';
 
 const log = loggers.task;
 const PRE_ACTION_CANCELLED_ERROR = 'MXU_PRE_ACTION_CANCELLED';
@@ -638,6 +643,32 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
             if (preActionControlStarted) {
               await endPreActionControl(targetId);
             }
+          }
+        }
+
+        // PaperMoon：自动战斗任务开始前补齐 Atlas 素材（docs/auto-battle.md 战前素材策略）。
+        // 从者识别素材缺失时自动下载（可停止），礼装缺失则阻止开始并提示手动下载。
+        const autoBattleTask = compatibleTasks.find(
+          (task) => task.taskName === PAPERMOON_AUTO_BATTLE_TASK,
+        );
+        if (autoBattleTask) {
+          await beginPreActionControl(targetId);
+          try {
+            const assetResult = await ensureAutoBattleAssets({
+              // ponytail: 自动化资源当前仅支持 TW；扩展多服务器时改为从任务资源推导
+              server: 'TW',
+              value: autoBattleTask.optionValues?.[PAPERMOON_BATTLE_PLAN_OPTION],
+              emit: (type, message) => addLog(targetId, { type, message }),
+              shouldStop: () => preActionStopRequestedRef.current,
+            });
+            if (assetResult === 'cancelled') {
+              throw new Error(PRE_ACTION_CANCELLED_ERROR);
+            }
+            if (assetResult === 'blocked') {
+              return false;
+            }
+          } finally {
+            await endPreActionControl(targetId);
           }
         }
 

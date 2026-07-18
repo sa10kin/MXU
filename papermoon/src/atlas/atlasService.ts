@@ -512,6 +512,49 @@ export async function downloadAllServantRecognitionAssets(
   return invoke('download_atlas_images', { imageList, concurrency: 6 });
 }
 
+/** 选出计划从者及其内部战斗形态（formOf 指向计划从者）的索引条目。 */
+export function selectServantsForRecognitionDownload(
+  servants: AtlasServantEntry[],
+  servantIds: number[],
+): AtlasServantEntry[] {
+  const needed = new Set(servantIds.map(Number));
+  return servants.filter(
+    (servant) =>
+      (servant.id !== undefined && needed.has(Number(servant.id))) ||
+      (servant.formOf !== undefined && needed.has(Number(servant.formOf))),
+  );
+}
+
+/**
+ * 只下载指定从者（含其内部战斗形态）的识别素材，用于任务开始前按需补齐。
+ * 已缓存且与 manifest 记录一致的文件由下载端跳过。返回 null 表示识别素材
+ * 索引尚未准备（需要先更新基础资料）。
+ */
+export async function downloadServantRecognitionAssetsFor(
+  server: AtlasServer,
+  servantIds: number[],
+): Promise<AtlasImageDownloadResult | null> {
+  if (!isTauri()) {
+    throw new Error('Atlas image download is only available in the desktop app.');
+  }
+  const index = await readServantRecognitionIndex(server);
+  if (!index?.servants || !Array.isArray(index.servants)) {
+    return null;
+  }
+  const servants = selectServantsForRecognitionDownload(
+    index.servants as AtlasServantEntry[],
+    servantIds,
+  );
+  const imageList = buildServantRecognitionImageList(
+    { servants },
+    await getServantRecognitionImageDirs(),
+  );
+  if (imageList.length === 0) {
+    return { total: 0, downloaded: 0, skipped: 0, failed: 0, errors: [] };
+  }
+  return invoke('download_atlas_images', { imageList, concurrency: 6 });
+}
+
 export async function getAtlasImageStatus(
   server: AtlasServer,
   dataset: AtlasDataset,

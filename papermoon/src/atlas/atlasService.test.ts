@@ -16,6 +16,7 @@ import {
   buildServantRecognitionImageList,
   missingAtlasDatasets,
   selectCraftEssenceAsset,
+  selectServantsForRecognitionDownload,
   type AtlasCacheStatus,
 } from './atlasService';
 
@@ -242,5 +243,17 @@ describe('Atlas helpers', () => {
         url: 'https://example.com/aoko-command.png',
       },
     ]);
+  });
+});
+
+describe('selectServantsForRecognitionDownload', () => {
+  it('keeps planned servants and their internal battle forms', () => {
+    const servants = [
+      { id: 2501400, collectionNo: 413, name: 'Aoko' },
+      { id: 2501500, collectionNo: 0, name: 'Super Aoko', formOf: 2501400 },
+      { id: 100100, collectionNo: 2, name: 'Artoria' },
+    ];
+    const selected = selectServantsForRecognitionDownload(servants, [2501400]);
+    expect(selected.map((servant) => servant.id)).toEqual([2501400, 2501500]);
   });
 });
