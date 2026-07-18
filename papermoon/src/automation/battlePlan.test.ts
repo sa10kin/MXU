@@ -13,7 +13,20 @@ describe('BattlePlan editor helpers', () => {
       ...emptyBattlePlan(),
       name: '3T',
       party: [{ slot: 1, servantId: 100100 }],
-      waves: [{ turns: [{ actions: [{ type: 'attack' }] }] }],
+      waves: [
+        {
+          turns: [
+            {
+              actions: [
+                {
+                  type: 'attack',
+                  cards: [{ type: 'command', colors: ['buster', 'arts', 'quick'] }],
+                },
+              ],
+            },
+          ],
+        },
+      ],
     };
 
     expect(parseBattlePlan(serializeBattlePlan(plan))).toEqual(plan);
@@ -42,5 +55,35 @@ describe('BattlePlan editor helpers', () => {
     expect(() => parseBattlePlan('{"schemaVersion":1,"description":"legacy"}')).toThrow(
       'description',
     );
+  });
+
+  it('reports invalid action references before Go validation', () => {
+    const plan = {
+      ...emptyBattlePlan(),
+      name: 'invalid action',
+      party: [{ slot: 1, servantId: 100100 }],
+      waves: [
+        {
+          turns: [
+            {
+              actions: [
+                { type: 'servantSkill', servant: 2, skill: 4 },
+                {
+                  type: 'attack',
+                  cards: [
+                    { type: 'np', servant: 1, onMissing: 'stop' },
+                    { type: 'np', servant: 1, onMissing: 'stop' },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+    const errors = validateBattlePlan(plan);
+    expect(errors).toContain('waves[0].turns[0].actions[0].servant');
+    expect(errors).toContain('waves[0].turns[0].actions[0].skill');
+    expect(errors).toContain('waves[0].turns[0].actions[1].cards[1].servant');
   });
 });

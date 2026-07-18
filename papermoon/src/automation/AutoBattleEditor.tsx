@@ -13,6 +13,7 @@ import {
   type BattlePlan,
 } from './battlePlan';
 import { recoveryFruitQuantity, type RecoveryItem } from './loopPolicy';
+import { BattleEditor } from './BattleEditor';
 import { PartyEditor } from './PartyEditor';
 import { SupportEditor } from './SupportEditor';
 import {
@@ -220,9 +221,13 @@ export function AutoBattleEditor({
           onChange={commitPlan}
         />
       ) : (
-        <div className="rounded-xl border border-dashed border-border p-8 text-center text-sm text-text-muted">
-          {text(`placeholder.${tab}`)}
-        </div>
+        <BattleEditor
+          plan={parsed.plan}
+          supportPolicy={supportParsed.policy}
+          disabled={disabled}
+          text={text}
+          onChange={commitPlan}
+        />
       )}
 
       <div
