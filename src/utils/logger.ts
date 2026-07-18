@@ -97,6 +97,21 @@ async function writeLogToFile(line: string): Promise<void> {
   }
 }
 
+/** 文件日志参数序列化：Error 保留 message/stack（JSON.stringify(Error) 会得到 "{}"） */
+function formatLogArg(arg: unknown): string {
+  if (arg instanceof Error) {
+    return arg.stack ?? `${arg.name}: ${arg.message}`;
+  }
+  if (typeof arg === 'object') {
+    try {
+      return JSON.stringify(arg);
+    } catch {
+      return String(arg);
+    }
+  }
+  return String(arg);
+}
+
 // 配置根日志器
 log.setLevel(defaultLevel);
 
@@ -117,9 +132,7 @@ log.methodFactory = function (methodName, logLevel, loggerName) {
       const fullTimestamp = formatLocalDateTime(now);
       const level = methodName.toUpperCase().padEnd(5);
       const module = loggerName ? `[${String(loggerName)}]` : '';
-      const message = args
-        .map((arg) => (typeof arg === 'object' ? JSON.stringify(arg) : String(arg)))
-        .join(' ');
+      const message = args.map(formatLogArg).join(' ');
       writeLogToFile(`${fullTimestamp} ${level} ${module} ${message}`);
     }
   };
@@ -151,9 +164,7 @@ export function createLogger(moduleName: string, level?: LogLevel) {
         const fullTimestamp = formatLocalDateTime(now);
         const level = methodName.toUpperCase().padEnd(5);
         const module = loggerName ? `[${String(loggerName)}]` : '';
-        const message = args
-          .map((arg) => (typeof arg === 'object' ? JSON.stringify(arg) : String(arg)))
-          .join(' ');
+        const message = args.map(formatLogArg).join(' ');
         writeLogToFile(`${fullTimestamp} ${level} ${module} ${message}`);
       }
     };

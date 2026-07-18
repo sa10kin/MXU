@@ -218,6 +218,8 @@ export default {
       windowNotFound: '창을 찾을 수 없습니다: {{name}}',
       noSavedDevice: '저장된 기기 설정이 없습니다',
       noDeviceFound: '기기를 찾을 수 없습니다',
+      savedDeviceNotFound: '저장된 기기 {{name}}을(를) 찾을 수 없습니다. 기기 실행 여부를 확인한 후 다시 시도하세요',
+      savedWindowNotFound: '저장된 창 {{name}}을(를) 찾을 수 없습니다. 창이 열려 있는지 확인한 후 다시 시도하세요',
       noWindowFound: '창을 찾을 수 없습니다',
       connectFailed: '자동 연결에 실패했습니다',
       retryConnect: '연결 실패, {{attempt}}번째 재시도...',

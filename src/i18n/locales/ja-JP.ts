@@ -305,6 +305,8 @@ export default {
       windowNotFound: 'ウィンドウが見つかりません: {{name}}',
       noSavedDevice: '保存されたデバイス設定がありません',
       noDeviceFound: 'デバイスが見つかりませんでした',
+      savedDeviceNotFound: '保存済みデバイス {{name}} が見つかりません。デバイスの起動を確認して再試行してください',
+      savedWindowNotFound: '保存済みウィンドウ {{name}} が見つかりません。ウィンドウが開いているか確認して再試行してください',
       noWindowFound: 'ウィンドウが見つかりませんでした',
       connectFailed: '自動接続に失敗しました',
       retryConnect: '接続失敗、リトライ {{attempt}}...',

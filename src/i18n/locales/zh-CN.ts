@@ -301,6 +301,8 @@ export default {
       windowNotFound: '未找到窗口: {{name}}',
       noSavedDevice: '没有保存的设备配置',
       noDeviceFound: '未搜索到任何设备',
+      savedDeviceNotFound: '未找到已保存的设备 {{name}}，请确认设备已启动后重试',
+      savedWindowNotFound: '未找到已保存的窗口 {{name}}，请确认窗口已打开后重试',
       noWindowFound: '未搜索到任何窗口',
       connectFailed: '自动连接失败',
       retryConnect: '连接失败，第 {{attempt}} 次重试...',

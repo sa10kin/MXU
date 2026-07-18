@@ -688,6 +688,12 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
               const matchedDevice = devices.find((d) => d.name === savedDevice.adbDeviceName);
               if (!matchedDevice) {
                 log.warn(`实例 ${targetInstance.name}: 未找到设备 ${savedDevice.adbDeviceName}`);
+                addLog(targetId, {
+                  type: 'error',
+                  message: t('taskList.autoConnect.savedDeviceNotFound', {
+                    name: savedDevice.adbDeviceName,
+                  }),
+                });
                 return false;
               }
               config = {
@@ -712,6 +718,12 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
               const matchedWindow = windows.find((w) => w.window_name === savedDevice.windowName);
               if (!matchedWindow) {
                 log.warn(`实例 ${targetInstance.name}: 未找到窗口 ${savedDevice.windowName}`);
+                addLog(targetId, {
+                  type: 'error',
+                  message: t('taskList.autoConnect.savedWindowNotFound', {
+                    name: savedDevice.windowName,
+                  }),
+                });
                 return false;
               }
               if (controllerType === 'Win32') {
@@ -738,6 +750,12 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
                 log.warn(
                   `实例 ${targetInstance.name}: 未找到 WlRoots socket ${savedDevice.wlrSocketPath}`,
                 );
+                addLog(targetId, {
+                  type: 'error',
+                  message: t('taskList.autoConnect.savedDeviceNotFound', {
+                    name: savedDevice.wlrSocketPath,
+                  }),
+                });
                 return false;
               }
               config = {

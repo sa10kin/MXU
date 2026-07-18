@@ -298,6 +298,8 @@ export default {
       windowNotFound: '未找到視窗: {{name}}',
       noSavedDevice: '沒有儲存的裝置設定',
       noDeviceFound: '未搜尋到任何裝置',
+      savedDeviceNotFound: '未找到已儲存的裝置 {{name}}，請確認裝置已啟動後重試',
+      savedWindowNotFound: '未找到已儲存的視窗 {{name}}，請確認視窗已開啟後重試',
       noWindowFound: '未搜尋到任何視窗',
       connectFailed: '自動連接失敗',
       retryConnect: '連接失敗，第 {{attempt}} 次重試...',

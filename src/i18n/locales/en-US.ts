@@ -265,6 +265,8 @@ export default {
       windowNotFound: 'Window not found: {{name}}',
       noSavedDevice: 'No saved device configuration',
       noDeviceFound: 'No devices found',
+      savedDeviceNotFound: 'Saved device {{name}} not found. Make sure it is running and try again',
+      savedWindowNotFound: 'Saved window {{name}} not found. Make sure it is open and try again',
       noWindowFound: 'No windows found',
       connectFailed: 'Auto connect failed',
       retryConnect: 'Connection failed, retry {{attempt}}...',
