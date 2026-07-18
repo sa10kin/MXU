@@ -3,7 +3,6 @@ export {
   waitForCtrlResult,
   waitForResResult,
   waitForTaskResult,
-  autoReconnectAttempted,
   type CallbackResult,
 } from './callbackCache';
 

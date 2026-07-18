@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { dedupeAdbDevices, resolveAdbReconnectTarget } from './maaService';
 
 describe('resolveAdbReconnectTarget', () => {
-  it('prefers the instance address, then the saved device, then the project default', () => {
+  it('keeps the saved address without reusing an emulator-private ADB path', () => {
     const device = {
       name: 'BlueStacks',
       adb_path: '/saved/adb',
@@ -12,11 +12,15 @@ describe('resolveAdbReconnectTarget', () => {
       config: '{}',
     };
 
-    expect(resolveAdbReconnectTarget(device, '127.0.0.1:5565')).toEqual({
-      adb_path: '/saved/adb',
+    expect(
+      resolveAdbReconnectTarget(device, '127.0.0.1:5565', { adb_path: '/project/adb' }),
+    ).toEqual({
+      adb_path: '/project/adb',
       address: '127.0.0.1:5565',
     });
-    expect(resolveAdbReconnectTarget(device)).toBe(device);
+    expect(resolveAdbReconnectTarget(device)).toEqual({
+      address: '127.0.0.1:5555',
+    });
     expect(resolveAdbReconnectTarget(undefined, undefined, { address: '127.0.0.1:5555' })).toEqual({
       address: '127.0.0.1:5555',
     });

@@ -27,12 +27,7 @@ import { getProcessNameFromPath } from '@/utils/paths';
 import { parseWin32ScreencapMethod, parseWin32InputMethod } from '@/types/maa';
 import { getInterfaceLangKey } from '@/i18n';
 import { generateId } from '@/stores/helpers';
-import {
-  startGlobalCallbackListener,
-  waitForCtrlResult,
-  waitForResResult,
-  autoReconnectAttempted,
-} from './connection';
+import { startGlobalCallbackListener, waitForCtrlResult, waitForResResult } from './connection';
 
 export function ConnectionPanel() {
   const { t } = useTranslation();
@@ -340,39 +335,6 @@ export function ConnectionPanel() {
       handleSearch();
     }
   }, [currentControllerName]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // 应用启动/实例切换时自动重连之前保存的设备
-  useEffect(() => {
-    if (!instanceId || !activeInstance || !currentController) return;
-
-    // 如果已连接或正在连接/搜索，不触发自动重连
-    if (isConnected || isConnecting || isSearching) return;
-
-    // 后端已报告连接成功（如 WebUI 刷新后 restoreBackendStates 恢复），跳过重连
-    if (storedConnectionStatus === 'Connected') return;
-
-    // 如果该实例已经尝试过自动重连，不再重复
-    if (autoReconnectAttempted.has(instanceId)) return;
-
-    const savedDevice = activeInstance.savedDevice;
-    const hasHistoricalDevice =
-      savedDevice &&
-      ((controllerType === 'Adb' && savedDevice.adbDeviceName) ||
-        ((controllerType === 'Win32' || controllerType === 'Gamepad') && savedDevice.windowName) ||
-        (controllerType === 'WlRoots' && savedDevice.wlrSocketPath) ||
-        (controllerType === 'PlayCover' && savedDevice.playcoverAddress));
-
-    if (hasHistoricalDevice && needsDeviceSearch) {
-      // 标记该实例已尝试过自动重连
-      autoReconnectAttempted.add(instanceId);
-      // 触发搜索并自动连接（handleSearch 内部已有匹配+自动连接逻辑）
-      handleSearch();
-    } else if (hasHistoricalDevice && controllerType === 'PlayCover') {
-      // PlayCover 不需要搜索，直接连接
-      autoReconnectAttempted.add(instanceId);
-      handleConnect();
-    }
-  }, [instanceId, activeInstance, currentController, isConnected, isConnecting, isSearching]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 初始化 MaaFramework
   const ensureMaaInitialized = async () => {
@@ -867,11 +829,9 @@ export function ConnectionPanel() {
     setDeviceError(null);
     try {
       await ensureMaaInitialized();
-      const savedDevice = activeInstance?.savedDevice;
-      const devices = await maaService.findAdbDevices({
-        adb_path: savedDevice?.adbDevice?.adb_path ?? currentController?.adb?.adb_path,
-        address,
-      });
+      const devices = await maaService.findAdbDevices(
+        resolveAdbReconnectTarget(undefined, address, currentController?.adb),
+      );
       setCachedAdbDevices(devices);
       const device = devices.find((item) => item.address === address);
       if (!device) throw new Error(t('controller.savedDeviceNotFound'));
@@ -887,7 +847,6 @@ export function ConnectionPanel() {
     setIsConnecting(true);
     setDeviceError(null);
     try {
-      autoReconnectAttempted.add(instanceId);
       await maaService.destroyInstance(instanceId);
       setIsConnected(false);
       setSelectedAdbDevice(null);

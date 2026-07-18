@@ -23,9 +23,6 @@ const CACHE_CLEANUP_TIMEOUT = 30000;
 let globalListenerStarted = false;
 let globalListenerPromise: Promise<void> | null = null;
 
-// 记录每个实例是否已尝试过自动重连
-export const autoReconnectAttempted = new Set<string>();
-
 /**
  * 启动全局回调监听器（只启动一次）
  */

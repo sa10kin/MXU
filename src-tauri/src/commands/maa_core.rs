@@ -3,7 +3,7 @@
 //! 提供 MaaFramework 初始化、版本检查、设备搜索、控制器、资源和任务管理
 
 use log::{debug, error, info, warn};
-use std::process::Command;
+use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicI64, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -254,27 +254,37 @@ fn connect_adb_target(target: &AdbReconnectTarget) -> Result<(), String> {
     ]);
     candidates.dedup();
 
-    let mut last_error = String::new();
     for adb in candidates {
-        match Command::new(&adb)
+        let mut child = match Command::new(&adb)
             .args(["connect", &target.address])
-            .output()
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn()
         {
-            Ok(output) if output.status.success() => {
-                info!("ADB connected via {} to {}", adb, target.address);
-                return Ok(());
+            Ok(child) => child,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
+            Err(error) => return Err(format!("无法启动 ADB {}: {}", adb, error)),
+        };
+
+        let started = Instant::now();
+        loop {
+            if let Some(status) = child.try_wait().map_err(|error| error.to_string())? {
+                if status.success() {
+                    info!("ADB connected via {} to {}", adb, target.address);
+                    return Ok(());
+                }
+                return Err(format!("无法连接 ADB 设备 {}", target.address));
             }
-            Ok(output) => {
-                last_error = String::from_utf8_lossy(&output.stderr).trim().to_string();
+            if started.elapsed() >= Duration::from_secs(5) {
+                let _ = child.kill();
+                let _ = child.wait();
+                return Err(format!("连接 ADB 设备 {} 超时", target.address));
             }
-            Err(error) => last_error = error.to_string(),
+            std::thread::sleep(Duration::from_millis(50));
         }
     }
 
-    Err(format!(
-        "无法连接 ADB 设备 {}: {}",
-        target.address, last_error
-    ))
+    Err("未找到可用的 ADB 程序".to_string())
 }
 
 pub async fn find_adb_devices_impl(
@@ -282,9 +292,9 @@ pub async fn find_adb_devices_impl(
     reconnect_target: Option<AdbReconnectTarget>,
 ) -> Result<Vec<AdbDevice>, String> {
     tokio::task::spawn_blocking(move || {
-        let reconnect_error = reconnect_target
-            .as_ref()
-            .and_then(|target| connect_adb_target(target).err());
+        if let Some(target) = reconnect_target.as_ref() {
+            connect_adb_target(target)?;
+        }
         let devices = Toolkit::find_adb_devices().map_err(|e| e.to_string())?;
 
         let result_devices: Vec<AdbDevice> = devices
@@ -301,12 +311,6 @@ pub async fn find_adb_devices_impl(
 
         if let Ok(mut cached) = state.cached_adb_devices.lock() {
             *cached = result_devices.clone();
-        }
-
-        if result_devices.is_empty() {
-            if let Some(error) = reconnect_error {
-                return Err(error);
-            }
         }
 
         info!("find_adb_devices_impl: {} device(s)", result_devices.len());

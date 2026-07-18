@@ -22,16 +22,15 @@ import type { AdbConfig } from '@/types/interface';
 
 const log = loggers.maa;
 
-/** 优先使用已保存设备；没有历史设备时使用项目声明的 TCP 地址。 */
+/** 使用保存的地址，但只信任项目声明的 ADB 程序，避免复用模拟器私有 ADB。 */
 export function resolveAdbReconnectTarget(
   device?: AdbDevice,
   address?: string,
   config?: AdbConfig,
 ): AdbReconnectTarget | undefined {
-  if (address) return { adb_path: device?.adb_path ?? config?.adb_path, address };
-  if (device) return device;
-  if (!config?.address) return undefined;
-  return { adb_path: config.adb_path, address: config.address };
+  const targetAddress = address ?? device?.address ?? config?.address;
+  if (!targetAddress) return undefined;
+  return { adb_path: config?.adb_path, address: targetAddress };
 }
 
 export function dedupeAdbDevices(devices: AdbDevice[]): AdbDevice[] {
