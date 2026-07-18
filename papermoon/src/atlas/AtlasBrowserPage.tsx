@@ -27,6 +27,7 @@ import {
   type AtlasServer,
 } from './atlasService';
 import { loadAtlasAliases, saveAtlasAliases, type AtlasAliases } from './atlasAliases';
+import { classIconRemoteUrl, resolveClassIconSrc } from './classIcons';
 import type { BattlePlan } from '../automation/battlePlan';
 
 type BrowserTab = 'servants' | 'craftEssences' | 'presets';
@@ -399,6 +400,28 @@ function TabButton({
   );
 }
 
+function ClassIconImage({ iconId, active }: { iconId: number; active: boolean }) {
+  const [src, setSrc] = useState<string | null>(null);
+  useEffect(() => {
+    let alive = true;
+    setSrc(null);
+    resolveClassIconSrc(iconId, active).then((resolved) => {
+      if (alive) setSrc(resolved);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [iconId, active]);
+  return (
+    <img
+      src={src ?? classIconRemoteUrl(iconId, active)}
+      alt=""
+      className="h-10 w-10 object-contain"
+      draggable={false}
+    />
+  );
+}
+
 function ClassFilterButton({
   active,
   icon,
@@ -424,16 +447,7 @@ function ClassFilterButton({
           : 'border-border bg-bg-primary text-text-muted hover:border-accent/50 hover:text-text-primary'
       }`}
     >
-      {iconId ? (
-        <img
-          src={`https://static.atlasacademy.io/JP/ClassIcons/class${active ? 3 : 2}_${iconId}.png`}
-          alt=""
-          className="h-10 w-10 object-contain"
-          draggable={false}
-        />
-      ) : (
-        icon
-      )}
+      {iconId ? <ClassIconImage iconId={iconId} active={active} /> : icon}
       <span className="sr-only">{label}</span>
     </button>
   );
