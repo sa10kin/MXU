@@ -1,6 +1,7 @@
 // MXU 配置文件结构 (mxu.json)
 
 import type { ActionConfig, OptionValue } from './interface';
+import type { AdbDevice } from './maa';
 import type { AccentColor, CustomAccent } from '@/themes/types';
 
 export const DEFAULT_MAX_LOGS_PER_INSTANCE = 500;
@@ -27,6 +28,10 @@ export interface SavedTask {
 export interface SavedDeviceInfo {
   // ADB 设备：保存设备名称
   adbDeviceName?: string;
+  // ADB 设备：保存完整参数，供 TCP 设备在下次启动时主动重连
+  adbDevice?: AdbDevice;
+  // ADB TCP 地址：支持多开实例分别连接不同端口
+  adbAddress?: string;
   // Win32/Gamepad：保存窗口名称
   windowName?: string;
   // WlRoots：保存 Wayland socket 路径

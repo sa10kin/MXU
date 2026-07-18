@@ -3,6 +3,7 @@
 //! 提供 MaaFramework 初始化、版本检查、设备搜索、控制器、资源和任务管理
 
 use log::{debug, error, info, warn};
+use std::process::Command;
 use std::sync::atomic::{AtomicI64, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -16,8 +17,8 @@ use maa_framework::toolkit::Toolkit;
 use maa_framework::MaaStatus;
 
 use super::types::{
-    AdbDevice, ConnectionStatus, ControllerConfig, MaaState, TaskStatus, VersionCheckResult,
-    Win32Window,
+    AdbDevice, AdbReconnectTarget, ConnectionStatus, ControllerConfig, MaaState, TaskStatus,
+    VersionCheckResult, Win32Window,
 };
 use super::utils::{emit_callback_event, get_maafw_dir, handle_task_callback, normalize_path};
 
@@ -241,8 +242,49 @@ pub fn maa_check_version(state: State<Arc<MaaState>>) -> Result<VersionCheckResu
 
 /// 查找 ADB 设备（结果会缓存到 MaaState）
 /// 查找 ADB 设备的内部实现（可从 Tauri 命令和 HTTP 处理器共享调用）
-pub async fn find_adb_devices_impl(state: Arc<MaaState>) -> Result<Vec<AdbDevice>, String> {
+fn connect_adb_target(target: &AdbReconnectTarget) -> Result<(), String> {
+    let mut candidates = Vec::new();
+    if let Some(path) = target.adb_path.as_deref().filter(|path| !path.is_empty()) {
+        candidates.push(path.to_string());
+    }
+    candidates.extend([
+        "adb".to_string(),
+        "/opt/homebrew/bin/adb".to_string(),
+        "/usr/local/bin/adb".to_string(),
+    ]);
+    candidates.dedup();
+
+    let mut last_error = String::new();
+    for adb in candidates {
+        match Command::new(&adb)
+            .args(["connect", &target.address])
+            .output()
+        {
+            Ok(output) if output.status.success() => {
+                info!("ADB connected via {} to {}", adb, target.address);
+                return Ok(());
+            }
+            Ok(output) => {
+                last_error = String::from_utf8_lossy(&output.stderr).trim().to_string();
+            }
+            Err(error) => last_error = error.to_string(),
+        }
+    }
+
+    Err(format!(
+        "无法连接 ADB 设备 {}: {}",
+        target.address, last_error
+    ))
+}
+
+pub async fn find_adb_devices_impl(
+    state: Arc<MaaState>,
+    reconnect_target: Option<AdbReconnectTarget>,
+) -> Result<Vec<AdbDevice>, String> {
     tokio::task::spawn_blocking(move || {
+        let reconnect_error = reconnect_target
+            .as_ref()
+            .and_then(|target| connect_adb_target(target).err());
         let devices = Toolkit::find_adb_devices().map_err(|e| e.to_string())?;
 
         let result_devices: Vec<AdbDevice> = devices
@@ -261,6 +303,12 @@ pub async fn find_adb_devices_impl(state: Arc<MaaState>) -> Result<Vec<AdbDevice
             *cached = result_devices.clone();
         }
 
+        if result_devices.is_empty() {
+            if let Some(error) = reconnect_error {
+                return Err(error);
+            }
+        }
+
         info!("find_adb_devices_impl: {} device(s)", result_devices.len());
         Ok(result_devices)
     })
@@ -271,9 +319,10 @@ pub async fn find_adb_devices_impl(state: Arc<MaaState>) -> Result<Vec<AdbDevice
 #[tauri::command]
 pub async fn maa_find_adb_devices(
     state: State<'_, Arc<MaaState>>,
+    reconnect_target: Option<AdbReconnectTarget>,
 ) -> Result<Vec<AdbDevice>, String> {
     info!("maa_find_adb_devices called");
-    find_adb_devices_impl(state.inner().clone()).await
+    find_adb_devices_impl(state.inner().clone(), reconnect_target).await
 }
 
 /// 查找 Win32 窗口的内部实现（可从 Tauri 命令和 HTTP 处理器共享调用）

@@ -5,6 +5,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { listen, UnlistenFn } from '@tauri-apps/api/event';
 import type {
   AdbDevice,
+  AdbReconnectTarget,
   Win32Window,
   ControllerConfig,
   ConnectionStatus,
@@ -17,8 +18,28 @@ import { loggers } from '@/utils/logger';
 import { isTauri } from '@/utils/paths';
 import { apiDelete, apiGet, apiPost, apiPut, getApiBase } from '@/utils/backendApi';
 import * as wsService from '@/services/wsService';
+import type { AdbConfig } from '@/types/interface';
 
 const log = loggers.maa;
+
+/** 优先使用已保存设备；没有历史设备时使用项目声明的 TCP 地址。 */
+export function resolveAdbReconnectTarget(
+  device?: AdbDevice,
+  address?: string,
+  config?: AdbConfig,
+): AdbReconnectTarget | undefined {
+  if (address) return { adb_path: device?.adb_path ?? config?.adb_path, address };
+  if (device) return device;
+  if (!config?.address) return undefined;
+  return { adb_path: config.adb_path, address: config.address };
+}
+
+export function dedupeAdbDevices(devices: AdbDevice[]): AdbDevice[] {
+  // ponytail: ADB 列表通常只有几项；数量明显增长时再改用 Set。
+  return devices.filter(
+    (device, index) => devices.findIndex((item) => item.address === device.address) === index,
+  );
+}
 
 /**
  * 从后端获取最新缓存截图，转换为 base64 data URL（浏览器专用）
@@ -166,18 +187,21 @@ export const maaService = {
   /**
    * 查找 ADB 设备
    */
-  async findAdbDevices(): Promise<AdbDevice[]> {
+  async findAdbDevices(reconnectTarget?: AdbReconnectTarget): Promise<AdbDevice[]> {
     log.info('搜索 ADB 设备...');
     const devices = isTauri()
-      ? await invoke<AdbDevice[]>('maa_find_adb_devices')
-      : await apiGet<AdbDevice[]>('/maa/devices');
-    log.info('找到 ADB 设备:', devices.length, '个');
-    devices.forEach((device, i) => {
+      ? await invoke<AdbDevice[]>('maa_find_adb_devices', { reconnectTarget })
+      : reconnectTarget
+        ? await apiPost<AdbDevice[]>('/maa/devices/reconnect', reconnectTarget)
+        : await apiGet<AdbDevice[]>('/maa/devices');
+    const uniqueDevices = dedupeAdbDevices(devices);
+    log.info('找到 ADB 设备:', uniqueDevices.length, '个');
+    uniqueDevices.forEach((device, i) => {
       log.debug(
         `  设备[${i}]: name=${device.name}, address=${device.address}, adb_path=${device.adb_path}`,
       );
     });
-    return devices;
+    return uniqueDevices;
   },
 
   /**

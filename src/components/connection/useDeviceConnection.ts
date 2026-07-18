@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { maaService } from '@/services/maaService';
+import { maaService, resolveAdbReconnectTarget } from '@/services/maaService';
 import { useAppStore } from '@/stores/appStore';
 import type { AdbDevice, Win32Window, ControllerConfig } from '@/types/maa';
 import { parseWin32ScreencapMethod, parseWin32InputMethod } from '@/types/maa';
@@ -103,7 +103,13 @@ export function useDeviceConnection({
       const savedDevice = activeInstance?.savedDevice;
 
       if (controllerType === 'Adb') {
-        const devices = await maaService.findAdbDevices();
+        const devices = await maaService.findAdbDevices(
+          resolveAdbReconnectTarget(
+            savedDevice?.adbDevice,
+            savedDevice?.adbAddress,
+            currentController.adb,
+          ),
+        );
         setCachedAdbDevices(devices);
 
         let autoSelected: AdbDevice | null = null;
@@ -185,7 +191,11 @@ export function useDeviceConnection({
       setSelectedAdbDevice(device);
       setShowDeviceDropdown(false);
 
-      setInstanceSavedDevice(instanceId, { adbDeviceName: device.name });
+      setInstanceSavedDevice(instanceId, {
+        adbDeviceName: device.name,
+        adbDevice: device,
+        adbAddress: device.address,
+      });
 
       setIsConnecting(true);
       setDeviceError(null);

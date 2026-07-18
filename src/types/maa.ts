@@ -10,6 +10,12 @@ export interface AdbDevice {
   config: string;
 }
 
+/** 扫描前可选的 ADB TCP 重连目标 */
+export interface AdbReconnectTarget {
+  adb_path?: string;
+  address: string;
+}
+
 /** Win32 窗口信息 */
 export interface Win32Window {
   handle: number;

@@ -17,7 +17,7 @@ import {
   History,
 } from 'lucide-react';
 import clsx from 'clsx';
-import { maaService } from '@/services/maaService';
+import { maaService, resolveAdbReconnectTarget } from '@/services/maaService';
 import { useAppStore } from '@/stores/appStore';
 import { resolveI18nText } from '@/services/contentResolver';
 import type { AdbDevice, Win32Window, ControllerConfig } from '@/types/maa';
@@ -82,6 +82,9 @@ export function ConnectionPanel() {
   const [isConnected, setIsConnected] = useState(false);
   const [deviceError, setDeviceError] = useState<string | null>(null);
   const [selectedAdbDevice, setSelectedAdbDevice] = useState<AdbDevice | null>(null);
+  const [adbAddress, setAdbAddress] = useState(
+    activeInstance?.savedDevice?.adbAddress || '127.0.0.1:5555',
+  );
   const [selectedWindow, setSelectedWindow] = useState<Win32Window | null>(null);
   const [selectedWlrootsSocket, setSelectedWlrootsSocket] = useState<string | null>(null);
   const [showDeviceDropdown, setShowDeviceDropdown] = useState(false);
@@ -241,6 +244,12 @@ export function ConnectionPanel() {
 
     // 从缓存的设备列表中恢复选中的设备
     const savedDevice = activeInstance?.savedDevice;
+    setAdbAddress(
+      savedDevice?.adbAddress ||
+        savedDevice?.adbDevice?.address ||
+        currentController?.adb?.address ||
+        '127.0.0.1:5555',
+    );
     if (savedDevice?.adbDeviceName && cachedAdbDevices.length > 0) {
       // 从缓存中找到匹配的 ADB 设备
       const matchedDevice = cachedAdbDevices.find((d) => d.name === savedDevice.adbDeviceName);
@@ -316,6 +325,7 @@ export function ConnectionPanel() {
     controllerType === 'Win32' ||
     controllerType === 'Gamepad' ||
     controllerType === 'WlRoots';
+  const showsDeviceDropdown = needsDeviceSearch && controllerType !== 'Adb';
 
   // 记录上一次的控制器名称，用于检测切换
   const prevControllerNameRef = useRef<string | undefined>(currentControllerName);
@@ -392,7 +402,13 @@ export function ConnectionPanel() {
       const savedDevice = activeInstance?.savedDevice;
 
       if (controllerType === 'Adb') {
-        const devices = await maaService.findAdbDevices();
+        const devices = await maaService.findAdbDevices(
+          resolveAdbReconnectTarget(
+            savedDevice?.adbDevice,
+            savedDevice?.adbAddress,
+            currentController.adb,
+          ),
+        );
         setCachedAdbDevices(devices);
 
         // 自动连接策略：
@@ -787,7 +803,12 @@ export function ConnectionPanel() {
     setShowDeviceDropdown(false);
 
     // 保存设备名称到实例配置
-    setInstanceSavedDevice(instanceId, { adbDeviceName: device.name });
+    setAdbAddress(device.address);
+    setInstanceSavedDevice(instanceId, {
+      adbDeviceName: device.name,
+      adbDevice: device,
+      adbAddress: device.address,
+    });
 
     // 自动连接
     setIsConnecting(true);
@@ -823,6 +844,60 @@ export function ConnectionPanel() {
       setDeviceError(err instanceof Error ? err.message : t('controller.connectionFailed'));
       setIsConnected(false);
       setInstanceConnectionStatus(instanceId, 'Disconnected');
+      setIsConnecting(false);
+    }
+  };
+
+  const handleConnectAdbAddress = async () => {
+    const address = adbAddress.trim();
+    const separator = address.lastIndexOf(':');
+    const port = Number(address.slice(separator + 1));
+    if (
+      separator < 1 ||
+      /\s/.test(address) ||
+      !Number.isInteger(port) ||
+      port < 1 ||
+      port > 65535
+    ) {
+      setDeviceError(t('controller.invalidAdbAddress'));
+      return;
+    }
+
+    setIsSearching(true);
+    setDeviceError(null);
+    try {
+      await ensureMaaInitialized();
+      const savedDevice = activeInstance?.savedDevice;
+      const devices = await maaService.findAdbDevices({
+        adb_path: savedDevice?.adbDevice?.adb_path ?? currentController?.adb?.adb_path,
+        address,
+      });
+      setCachedAdbDevices(devices);
+      const device = devices.find((item) => item.address === address);
+      if (!device) throw new Error(t('controller.savedDeviceNotFound'));
+      await handleSelectAdbDevice(device);
+    } catch (err) {
+      setDeviceError(err instanceof Error ? err.message : t('controller.connectionFailed'));
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  const handleDisconnectAdb = async () => {
+    setIsConnecting(true);
+    setDeviceError(null);
+    try {
+      autoReconnectAttempted.add(instanceId);
+      await maaService.destroyInstance(instanceId);
+      setIsConnected(false);
+      setSelectedAdbDevice(null);
+      setInstanceConnectionStatus(instanceId, 'Disconnected');
+      setIsResourceLoaded(false);
+      setInstanceResourceLoaded(instanceId, false);
+      lastLoadedResourceRef.current = null;
+    } catch (err) {
+      setDeviceError(err instanceof Error ? err.message : t('controller.connectionFailed'));
+    } finally {
       setIsConnecting(false);
     }
   };
@@ -983,7 +1058,13 @@ export function ConnectionPanel() {
       const savedDevice = activeInstance?.savedDevice;
 
       if (controllerType === 'Adb') {
-        const devices = await maaService.findAdbDevices();
+        const devices = await maaService.findAdbDevices(
+          resolveAdbReconnectTarget(
+            savedDevice?.adbDevice,
+            savedDevice?.adbAddress,
+            currentController.adb,
+          ),
+        );
         setCachedAdbDevices(devices);
 
         // 尝试匹配保存的设备名称
@@ -1206,6 +1287,7 @@ export function ConnectionPanel() {
     const hasHistoricalDevice =
       activeInstance?.savedDevice &&
       (activeInstance.savedDevice.adbDeviceName ||
+        activeInstance.savedDevice.adbAddress ||
         activeInstance.savedDevice.windowName ||
         activeInstance.savedDevice.wlrSocketPath ||
         activeInstance.savedDevice.playcoverAddress);
@@ -1410,8 +1492,57 @@ export function ConnectionPanel() {
               </div>
             )}
 
+            {/* ADB TCP 地址：每个实例可连接不同的模拟器端口 */}
+            {controllerType === 'Adb' && (
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={adbAddress}
+                  onChange={(event) => setAdbAddress(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') void handleConnectAdbAddress();
+                  }}
+                  placeholder="127.0.0.1:5555"
+                  aria-label={t('controller.adbAddress')}
+                  disabled={isConnected || isConnecting || isSearching || isRunning}
+                  className={clsx(
+                    'flex-1 min-w-0 px-2.5 py-1.5 rounded-md border bg-bg-tertiary border-border text-sm',
+                    'text-text-primary placeholder:text-text-muted',
+                    'focus:outline-none focus:border-accent transition-colors',
+                    (isConnected || isConnecting || isSearching || isRunning) &&
+                      'opacity-60 cursor-not-allowed',
+                  )}
+                />
+                <button
+                  onClick={() =>
+                    void (isConnected ? handleDisconnectAdb() : handleConnectAdbAddress())
+                  }
+                  disabled={
+                    isConnecting || isSearching || isRunning || (!isConnected && !adbAddress.trim())
+                  }
+                  className={clsx(
+                    'flex items-center justify-center px-3 py-1.5 rounded-md border transition-colors',
+                    isConnecting || isSearching || isRunning || (!isConnected && !adbAddress.trim())
+                      ? 'bg-bg-tertiary border-border opacity-50 cursor-not-allowed'
+                      : isConnected
+                        ? 'bg-error border-error text-white hover:opacity-90'
+                        : 'bg-accent border-accent text-white hover:bg-accent-hover',
+                  )}
+                  title={t(isConnected ? 'controller.disconnect' : 'controller.connect')}
+                >
+                  {isConnecting || isSearching ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin text-text-secondary" />
+                  ) : isConnected ? (
+                    <WifiOff className="w-3.5 h-3.5" />
+                  ) : (
+                    <Wifi className="w-3.5 h-3.5" />
+                  )}
+                </button>
+              </div>
+            )}
+
             {/* 设备选择（Adb/Win32/Gamepad/Wlroots）- 下拉框和刷新按钮同一行 */}
-            {needsDeviceSearch && (
+            {showsDeviceDropdown && (
               <div className="flex gap-2">
                 <div className="relative flex-1 min-w-0">
                   <button
@@ -1434,13 +1565,7 @@ export function ConnectionPanel() {
                     <span
                       className={clsx(
                         'truncate',
-                        (
-                          controllerType === 'Adb'
-                            ? selectedAdbDevice
-                            : controllerType === 'WlRoots'
-                              ? selectedWlrootsSocket
-                              : selectedWindow
-                        )
+                        (controllerType === 'WlRoots' ? selectedWlrootsSocket : selectedWindow)
                           ? 'text-text-primary'
                           : 'text-text-muted',
                       )}

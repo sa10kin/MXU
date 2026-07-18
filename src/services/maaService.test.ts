@@ -1,0 +1,48 @@
+import { describe, expect, it } from 'vitest';
+import { dedupeAdbDevices, resolveAdbReconnectTarget } from './maaService';
+
+describe('resolveAdbReconnectTarget', () => {
+  it('prefers the instance address, then the saved device, then the project default', () => {
+    const device = {
+      name: 'BlueStacks',
+      adb_path: '/saved/adb',
+      address: '127.0.0.1:5555',
+      screencap_methods: '0',
+      input_methods: '0',
+      config: '{}',
+    };
+
+    expect(resolveAdbReconnectTarget(device, '127.0.0.1:5565')).toEqual({
+      adb_path: '/saved/adb',
+      address: '127.0.0.1:5565',
+    });
+    expect(resolveAdbReconnectTarget(device)).toBe(device);
+    expect(resolveAdbReconnectTarget(undefined, undefined, { address: '127.0.0.1:5555' })).toEqual({
+      address: '127.0.0.1:5555',
+    });
+  });
+
+  it('hides duplicate discoveries for the same ADB address', () => {
+    const devices = dedupeAdbDevices([
+      {
+        name: 'BlueStacks',
+        adb_path: '/opt/homebrew/bin/adb',
+        address: '127.0.0.1:5555',
+        screencap_methods: '0',
+        input_methods: '0',
+        config: '{}',
+      },
+      {
+        name: '/opt/homebrew/bin/adb',
+        adb_path: '/opt/homebrew/bin/adb',
+        address: '127.0.0.1:5555',
+        screencap_methods: '0',
+        input_methods: '0',
+        config: '{}',
+      },
+    ]);
+
+    expect(devices).toHaveLength(1);
+    expect(devices[0].name).toBe('BlueStacks');
+  });
+});

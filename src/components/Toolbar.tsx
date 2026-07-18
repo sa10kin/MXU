@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 import { useAppStore } from '@/stores/appStore';
 import { isTaskCompatible } from '@/stores/helpers';
-import { maaService } from '@/services/maaService';
+import { maaService, resolveAdbReconnectTarget } from '@/services/maaService';
 import clsx from 'clsx';
 import { loggers, generateTaskPipelineOverride, computeResourcePaths } from '@/utils';
 import { getMxuSpecialTask } from '@/types/specialTasks';
@@ -499,7 +499,13 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
                 throwIfPreActionStopped(targetId);
                 try {
                   if (controllerType === 'Adb') {
-                    const devices = await maaService.findAdbDevices();
+                    const devices = await maaService.findAdbDevices(
+                      resolveAdbReconnectTarget(
+                        savedDevice?.adbDevice,
+                        savedDevice?.adbAddress,
+                        controller?.adb,
+                      ),
+                    );
                     if (savedDevice?.adbDeviceName) {
                       deviceFound = devices.some((d) => d.name === savedDevice.adbDeviceName);
                     } else {
@@ -553,7 +559,13 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
                 ) {
                   try {
                     if (controllerType === 'Adb') {
-                      const devices = await maaService.findAdbDevices();
+                      const devices = await maaService.findAdbDevices(
+                        resolveAdbReconnectTarget(
+                          savedDevice?.adbDevice,
+                          savedDevice?.adbAddress,
+                          controller?.adb,
+                        ),
+                      );
                       if (devices.length > 0) {
                         addLog(targetId, {
                           type: 'info',
@@ -666,7 +678,13 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
             onPhaseChange?.('searching');
 
             if (controllerType === 'Adb' && savedDevice.adbDeviceName) {
-              const devices = await maaService.findAdbDevices();
+              const devices = await maaService.findAdbDevices(
+                resolveAdbReconnectTarget(
+                  savedDevice.adbDevice,
+                  savedDevice.adbAddress,
+                  controller.adb,
+                ),
+              );
               const matchedDevice = devices.find((d) => d.name === savedDevice.adbDeviceName);
               if (!matchedDevice) {
                 log.warn(`实例 ${targetInstance.name}: 未找到设备 ${savedDevice.adbDeviceName}`);
@@ -744,7 +762,9 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
             onPhaseChange?.('searching');
 
             if (controllerType === 'Adb') {
-              const devices = await maaService.findAdbDevices();
+              const devices = await maaService.findAdbDevices(
+                resolveAdbReconnectTarget(undefined, undefined, controller.adb),
+              );
               if (devices.length === 0) {
                 log.warn(`实例 ${targetInstance.name}: 未搜索到任何 ADB 设备`);
                 addLog(targetId, {

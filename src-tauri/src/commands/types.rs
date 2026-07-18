@@ -32,6 +32,13 @@ pub struct AdbDevice {
     pub config: String,
 }
 
+/// 扫描前可选的 ADB TCP 重连目标
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AdbReconnectTarget {
+    pub adb_path: Option<String>,
+    pub address: String,
+}
+
 /// 将 u64 序列化/反序列化为字符串，避免 JavaScript 精度丢失
 mod u64_as_string {
     use serde::{self, Deserialize, Deserializer, Serializer};

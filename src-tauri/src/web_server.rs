@@ -31,7 +31,7 @@ use crate::commands::{
         load_resource_impl, override_pipeline_impl, post_click_impl, post_screencap_impl,
         run_task_impl, stop_task_impl,
     },
-    types::{AgentConfig, ControllerConfig, MaaState, TaskConfig},
+    types::{AdbReconnectTarget, AgentConfig, ControllerConfig, MaaState, TaskConfig},
     utils::{emit_callback_event, emit_config_changed, emit_state_changed},
 };
 use crate::ws_broadcast::WsBroadcast;
@@ -222,6 +222,10 @@ pub async fn start_web_server(
         .route("/maa/initialized", get(handle_get_maa_initialized))
         // Maa 设备扫描
         .route("/maa/devices", get(handle_get_adb_devices))
+        .route(
+            "/maa/devices/reconnect",
+            axum::routing::post(handle_reconnect_adb_device),
+        )
         .route("/maa/windows", get(handle_get_win32_windows))
         .route("/maa/wlroots-sockets", get(handle_get_wlroots_sockets))
         // Maa 实例管理
@@ -703,7 +707,23 @@ async fn handle_get_maa_initialized(State(state): State<WebState>) -> impl IntoR
 /// GET /api/maa/devices
 /// 扫描并返回 ADB 设备列表（会更新 MaaState 缓存）
 async fn handle_get_adb_devices(State(state): State<WebState>) -> impl IntoResponse {
-    match find_adb_devices_impl(state.maa_state).await {
+    match find_adb_devices_impl(state.maa_state, None).await {
+        Ok(devices) => Json(serde_json::to_value(&devices).unwrap_or_default()).into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({ "error": e })),
+        )
+            .into_response(),
+    }
+}
+
+/// POST /api/maa/devices/reconnect
+/// 先连接指定的 ADB TCP 地址，再扫描设备。
+async fn handle_reconnect_adb_device(
+    State(state): State<WebState>,
+    Json(target): Json<AdbReconnectTarget>,
+) -> impl IntoResponse {
+    match find_adb_devices_impl(state.maa_state, Some(target)).await {
         Ok(devices) => Json(serde_json::to_value(&devices).unwrap_or_default()).into_response(),
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,

@@ -1,5 +1,7 @@
 // MaaFramework ProjectInterface V2 协议类型定义
 
+import type { AdbDevice } from './maa';
+
 export interface ProjectInterface {
   interface_version: 2;
   languages?: Record<string, string>;
@@ -127,11 +129,18 @@ export interface ControllerItem {
   attach_resource_path?: string[];
   /** v2.3.0: 控制器级的选项配置 */
   option?: string[];
-  adb?: Record<string, unknown>;
+  adb?: AdbConfig;
   win32?: Win32Config;
   wlroots?: WlRootsConfig;
   playcover?: PlayCoverConfig;
   gamepad?: GamepadConfig;
+}
+
+export interface AdbConfig {
+  /** 可选的 adb 可执行文件；未指定时由后端从 PATH 和常见安装位置查找 */
+  adb_path?: string;
+  /** 可选的 ADB TCP 地址；扫描前会先尝试连接 */
+  address?: string;
 }
 
 export interface Win32Config {
@@ -313,6 +322,10 @@ export type OptionValue =
 // 保存的设备信息（运行时使用）
 export interface SavedDeviceInfo {
   adbDeviceName?: string;
+  /** 完整 ADB 参数，用于 TCP 设备主动重连 */
+  adbDevice?: AdbDevice;
+  /** 实例级 ADB TCP 地址 */
+  adbAddress?: string;
   windowName?: string;
   wlrSocketPath?: string;
   playcoverAddress?: string;
