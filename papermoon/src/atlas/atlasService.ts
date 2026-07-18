@@ -8,7 +8,6 @@ export type AtlasServantRecognitionAssetKind =
   | 'faces'
   | 'narrowFigure'
   | 'commands'
-  | 'commandNp'
   | 'status';
 
 export interface AtlasDatasetStatus {
@@ -137,7 +136,6 @@ const SERVANT_RECOGNITION_ASSET_KINDS: AtlasServantRecognitionAssetKind[] = [
   'faces',
   'narrowFigure',
   'commands',
-  'commandNp',
   'status',
 ];
 
@@ -892,7 +890,7 @@ function collectImageDownloadList(
         for (const asset of assets[scene]) {
           if (
             dataset === 'servants' &&
-            !['faces', 'commands', 'status', 'commandNp', 'narrowFigure'].includes(asset.kind)
+            !['faces', 'commands', 'status', 'narrowFigure'].includes(asset.kind)
           ) {
             continue;
           }
@@ -1158,7 +1156,7 @@ export function buildServantIndex(payload: unknown[], server: AtlasServer) {
         assets: {
           team: collectServantSceneAssets(item, ['faces', 'status']),
           battle: collectServantSceneAssets(item, ['narrowFigure']),
-          command: collectServantSceneAssets(item, ['commands', 'commandNp']),
+          command: collectServantSceneAssets(item, ['commands']),
           face: collectServantSceneAssets(item, ['faces']),
           status: collectServantSceneAssets(item, ['status']),
         },

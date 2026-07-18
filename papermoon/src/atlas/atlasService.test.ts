@@ -95,7 +95,6 @@ describe('Atlas helpers', () => {
       faces: '/assets/faces',
       narrowFigure: '/assets/narrow_figure',
       commands: '/assets/commands',
-      commandNp: '/assets/command_np',
       status: '/assets/status',
     };
     expect(
@@ -146,7 +145,7 @@ describe('Atlas helpers', () => {
           collectionNo: 0,
           name: 'Super Aoko',
           extraAssets: {
-            commandNp: { ascension: { 0: 'https://example.com/aoko-np.png' } },
+            commands: { ascension: { 0: 'https://example.com/aoko-command.png' } },
           },
         },
       ],
@@ -161,9 +160,9 @@ describe('Atlas helpers', () => {
       recognitionScopes: ['battle'],
     });
     expect(index.servants[1].assets.command).toContainEqual({
-      kind: 'commandNp',
+      kind: 'commands',
       variant: 'ascension/0',
-      url: 'https://example.com/aoko-np.png',
+      url: 'https://example.com/aoko-command.png',
     });
   });
 
@@ -172,7 +171,6 @@ describe('Atlas helpers', () => {
       faces: '/assets/faces',
       narrowFigure: '/assets/narrow_figure',
       commands: '/assets/commands',
-      commandNp: '/assets/command_np',
       status: '/assets/status',
     };
     const entries = buildServantRecognitionImageList(
@@ -199,7 +197,6 @@ describe('Atlas helpers', () => {
       faces: '/assets/faces',
       narrowFigure: '/assets/narrow_figure',
       commands: '/assets/commands',
-      commandNp: '/assets/command_np',
       status: '/assets/status',
     };
     const entries = buildServantRecognitionImageList(

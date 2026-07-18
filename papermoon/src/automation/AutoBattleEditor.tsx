@@ -36,12 +36,18 @@ const DEFAULT_VALUES = {
   recoveryItem: 'none',
 };
 
+/** pipeline_type int 的输入落盘后是数字，数字 0 是 falsy，不能用 || 回退默认值 */
+function asDraftString(raw: string | number | undefined, fallback: string): string {
+  if (raw == null || raw === '') return fallback;
+  return String(raw);
+}
+
 function inputValues(value: OptionValue | undefined): Record<string, string> {
   if (value?.type !== 'input') return DEFAULT_VALUES;
   return {
     json: value.values.json || DEFAULT_VALUES.json,
     support: value.values.support || DEFAULT_VALUES.support,
-    repeatCount: value.values.repeatCount || DEFAULT_VALUES.repeatCount,
+    repeatCount: asDraftString(value.values.repeatCount, DEFAULT_VALUES.repeatCount),
     recoveryItem: value.values.recoveryItem || DEFAULT_VALUES.recoveryItem,
   };
 }
@@ -92,8 +98,12 @@ export function AutoBattleEditor({
       return { policy: emptySupportPolicy(), errors: ['json'] };
     }
   }, [values.support]);
+  const repeatCountNumber = Number(values.repeatCount);
+  const repeatCountValid =
+    Number.isInteger(repeatCountNumber) && repeatCountNumber >= 1 && repeatCountNumber <= 999;
   const errors = [
     ...parsed.errors,
+    ...(repeatCountValid ? [] : ['loop.repeatCount']),
     ...supportErrorsForParty(parsed.plan.party, supportParsed.errors).map(
       (error) => `support.${error}`,
     ),
@@ -174,10 +184,14 @@ export function AutoBattleEditor({
               <input
                 type="number"
                 min={1}
+                max={999}
                 value={values.repeatCount}
                 disabled={disabled}
                 onChange={(event) => commitValues({ repeatCount: event.target.value })}
-                className="w-full rounded-lg border border-border bg-bg-primary px-3 py-2 text-text-primary"
+                aria-invalid={!repeatCountValid}
+                className={`w-full rounded-lg border bg-bg-primary px-3 py-2 text-text-primary ${
+                  repeatCountValid ? 'border-border' : 'border-warning'
+                }`}
               />
             </label>
             <label className="block space-y-1 text-sm text-text-secondary">
