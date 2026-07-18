@@ -100,7 +100,9 @@ async function writeLogToFile(line: string): Promise<void> {
 /** 文件日志参数序列化：Error 保留 message/stack（JSON.stringify(Error) 会得到 "{}"） */
 function formatLogArg(arg: unknown): string {
   if (arg instanceof Error) {
-    return arg.stack ?? `${arg.name}: ${arg.message}`;
+    // WebKit 的 Error.stack 不含 message 行，必须单独拼接
+    const heading = `${arg.name}: ${arg.message}`;
+    return arg.stack ? `${heading}\n${arg.stack}` : heading;
   }
   if (typeof arg === 'object') {
     try {
