@@ -99,6 +99,11 @@ const LazySettingsPage = lazy(async () => {
   return { default: module.SettingsPage };
 });
 
+const LazyAtlasBrowserPage = lazy(async () => {
+  const module = await import('@papermoon/atlas/AtlasBrowserPage');
+  return { default: module.AtlasBrowserPage };
+});
+
 const LazyWelcomeDialog = lazy(async () => {
   const module = await import('@/components/WelcomeDialog');
   return { default: module.WelcomeDialog };
@@ -150,6 +155,7 @@ function App() {
 
   // 页面过渡状态
   const [isSettingsExiting, setIsSettingsExiting] = useState(false);
+  const [isAtlasExiting, setIsAtlasExiting] = useState(false);
   const [isDashboardExiting, setIsDashboardExiting] = useState(false);
 
   const { t } = useTranslation();
@@ -330,6 +336,14 @@ function App() {
     setTimeout(() => {
       setCurrentPage('main');
       setIsSettingsExiting(false);
+    }, PAGE_TRANSITION_DURATION);
+  }, [setCurrentPage]);
+
+  const closeAtlasWithAnimation = useCallback(() => {
+    setIsAtlasExiting(true);
+    window.setTimeout(() => {
+      setCurrentPage('main');
+      setIsAtlasExiting(false);
     }, PAGE_TRANSITION_DURATION);
   }, [setCurrentPage]);
 
@@ -1739,6 +1753,30 @@ function App() {
               showAddPanel={showAddTaskPanel}
               onToggleAddPanel={() => setShowAddTaskPanel(!showAddTaskPanel)}
             />
+          </div>
+        </div>
+        {toaster}
+      </div>
+    );
+  }
+
+  if (currentPage === 'atlas') {
+    return (
+      <div
+        className={`h-full flex flex-col bg-bg-primary relative ${backgroundImageDataUrl ? 'has-background-image' : ''}`}
+      >
+        <BackgroundOverlay imageDataUrl={backgroundImageDataUrl} opacity={backgroundOpacity} />
+        <div className="relative z-10 h-full flex flex-col">
+          <ConnectionLostOverlay />
+          <TitleBar />
+          <WebUIBetaBanner />
+          <div
+            key="atlas-page"
+            className={`flex-1 min-h-0 flex flex-col ${isAtlasExiting ? 'page-slide-right-exit' : 'page-slide-right-enter'}`}
+          >
+            <Suspense fallback={null}>
+              <LazyAtlasBrowserPage onClose={closeAtlasWithAnimation} />
+            </Suspense>
           </div>
         </div>
         {toaster}

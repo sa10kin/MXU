@@ -37,7 +37,7 @@ export interface LogEntry {
 
 export type Theme = 'light' | 'dark' | 'system';
 export type Language = 'system' | 'zh-CN' | 'zh-TW' | 'ja-JP';
-export type PageView = 'main' | 'settings';
+export type PageView = 'main' | 'settings' | 'atlas';
 
 // 定时执行状态信息
 export interface ScheduleExecutionInfo {

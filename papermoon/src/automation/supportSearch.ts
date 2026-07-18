@@ -1,4 +1,5 @@
 import type { AtlasBasicServantEntry, AtlasServer } from '../atlas/atlasService';
+import { loadAtlasAliases } from '../atlas/atlasAliases';
 
 export interface SupportServantOption {
   servant: AtlasBasicServantEntry;
@@ -8,6 +9,7 @@ export interface SupportServantOption {
 export function mergeSupportServants(
   catalogs: Partial<Record<AtlasServer, AtlasBasicServantEntry[]>>,
   displayServer: AtlasServer = 'TW',
+  savedAliases: Record<string, string[]> = loadAtlasAliases().servants,
 ): SupportServantOption[] {
   const merged = new Map<number, SupportServantOption>();
 
@@ -15,7 +17,8 @@ export function mergeSupportServants(
     for (const entry of entries ?? []) {
       if (!entry.id) continue;
       const current = merged.get(entry.id) ?? { servant: entry, aliases: [] };
-      current.aliases.push(...servantNames(entry));
+      const aliasKey = String(entry.collectionNo ?? entry.id);
+      current.aliases.push(...servantNames(entry), ...(savedAliases[aliasKey] ?? []));
       merged.set(entry.id, current);
     }
   }

@@ -22,6 +22,7 @@ import {
   History,
   Share2,
   FileText,
+  BookOpen,
 } from 'lucide-react';
 import { useAppStore } from '@/stores/appStore';
 import { ContextMenu, useContextMenu, type MenuItem } from './ContextMenu';
@@ -588,6 +589,21 @@ export function TabBar() {
             title={t('recentlyClosed.title')}
           >
             <History className="w-4 h-4" />
+          </button>
+        )}
+        {projectInterface?.name === 'PaperMoon' && (
+          <button
+            onClick={() => !topBarLocked && setCurrentPage('atlas')}
+            disabled={topBarLocked}
+            className={clsx(
+              'p-2 rounded-md transition-colors',
+              topBarLocked
+                ? 'cursor-not-allowed opacity-50'
+                : 'hover:bg-bg-hover text-text-secondary',
+            )}
+            title={t('atlasBrowser.title')}
+          >
+            <BookOpen className="w-4 h-4" />
           </button>
         )}
         <button

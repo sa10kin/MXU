@@ -23,4 +23,13 @@ describe('support servant search', () => {
   it('shows a TW candidate when filtering by a simplified Chinese name', () => {
     expect(filterSupportServants(options, '玛修')[0]?.servant.name).toBe('瑪修．基利艾拉特');
   });
+
+  it('uses aliases saved in the Atlas browser', () => {
+    const aliased = mergeSupportServants(
+      { TW: [{ id: 800100, collectionNo: 1, name: '瑪修．基利艾拉特' }] },
+      'TW',
+      { '1': ['小茄子'] },
+    );
+    expect(resolveSupportServant(aliased, '小茄子')?.servant.id).toBe(800100);
+  });
 });

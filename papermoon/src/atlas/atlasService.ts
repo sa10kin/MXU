@@ -365,15 +365,44 @@ export async function readCachedCraftEssenceFace(
   server: AtlasServer,
   craftEssence: AtlasCraftEssenceEntry,
 ): Promise<Uint8Array | null> {
+  const path = await cachedCraftEssenceFacePath(server, craftEssence);
+  if (!path) return null;
+  const { exists, readFile } = await import('@tauri-apps/plugin-fs');
+  return (await exists(path)) ? readFile(path) : null;
+}
+
+export async function getCachedCraftEssenceIds(
+  server: AtlasServer,
+  craftEssences: AtlasCraftEssenceEntry[],
+): Promise<Set<number>> {
+  if (!isTauri()) return new Set();
+  const dir = await getAtlasImageDir(server, 'craftEssences');
+  const { exists } = await import('@tauri-apps/plugin-fs');
+  const cached = await Promise.all(
+    craftEssences.map(async (craftEssence) => {
+      if (!craftEssence.id) return null;
+      const assets = Array.isArray(craftEssence.assets) ? craftEssence.assets : [];
+      const asset =
+        selectCraftEssenceAsset(assets, 'equipFaces') ?? selectCraftEssenceAsset(assets, 'faces');
+      if (!asset) return null;
+      const path = `${dir}/${atlasImageFileName(craftEssence.id, asset)}`;
+      return (await exists(path)) ? craftEssence.id : null;
+    }),
+  );
+  return new Set(cached.filter((id): id is number => id !== null));
+}
+
+async function cachedCraftEssenceFacePath(
+  server: AtlasServer,
+  craftEssence: AtlasCraftEssenceEntry,
+): Promise<string | null> {
   if (!isTauri() || !craftEssence.id) return null;
   const assets = Array.isArray(craftEssence.assets) ? craftEssence.assets : [];
   const asset =
     selectCraftEssenceAsset(assets, 'equipFaces') ?? selectCraftEssenceAsset(assets, 'faces');
   if (!asset) return null;
   const dir = await getAtlasImageDir(server, 'craftEssences');
-  const path = `${dir}/${atlasImageFileName(craftEssence.id, asset)}`;
-  const { exists, readFile } = await import('@tauri-apps/plugin-fs');
-  return (await exists(path)) ? readFile(path) : null;
+  return `${dir}/${atlasImageFileName(craftEssence.id, asset)}`;
 }
 
 /** Download or refresh a server catalogue and its shared servant face images. */
