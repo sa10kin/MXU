@@ -32,6 +32,27 @@ fn next_synthetic_conn_id() -> i64 {
     SYNTHETIC_CONN_ID.fetch_sub(1, Ordering::Relaxed)
 }
 
+fn normalize_adb_config(
+    screencap_methods: u64,
+    input_methods: u64,
+    config: &str,
+) -> (u64, u64, String) {
+    if cfg!(target_os = "macos")
+        && screencap_methods
+            == maa_framework::common::AdbScreencapMethod::EMULATOR_EXTRAS.bits()
+        && config.contains(r#""androws""#)
+    {
+        warn!("Ignoring unsupported Androws extras detected on macOS; using standard ADB methods");
+        return (
+            maa_framework::common::AdbScreencapMethod::DEFAULT.bits(),
+            maa_framework::common::AdbInputMethod::DEFAULT.bits(),
+            "{}".to_owned(),
+        );
+    }
+
+    (screencap_methods, input_methods, config.to_owned())
+}
+
 /// 更新实例的 Controller 并清理不再使用的旧 Pool 条目
 fn update_instance_controller(
     state: &super::types::MaaState,
@@ -583,6 +604,8 @@ pub async fn connect_controller_impl(
                 let agent_path = get_maafw_dir()
                     .map(|p| p.join("MaaAgentBinary").to_string_lossy().to_string())
                     .unwrap_or_else(|_| "./MaaAgentBinary".to_string());
+                let (screencap, input, controller_config) =
+                    normalize_adb_config(screencap, input, config);
 
                 AdbControllerBuilder::new(adb_path, address)
                     .screencap_methods(
@@ -592,7 +615,7 @@ pub async fn connect_controller_impl(
                     .input_methods(
                         maa_framework::common::AdbInputMethod::from_bits_truncate(input).bits(),
                     )
-                    .config(config)
+                    .config(&controller_config)
                     .agent_path(&agent_path)
                     .build()
                     .map_err(|e| e.to_string())?
@@ -712,6 +735,31 @@ pub async fn connect_controller_impl(
     })
     .await
     .map_err(|e| e.to_string())?
+}
+
+#[cfg(test)]
+mod tests {
+    use super::normalize_adb_config;
+
+    #[test]
+    fn falls_back_from_unsupported_androws_on_macos() {
+        let (screencap, input, config) =
+            normalize_adb_config(64, 8, r#"{"extras":{"androws":{"enable":true}}}"#);
+
+        if cfg!(target_os = "macos") {
+            assert_eq!(
+                screencap,
+                maa_framework::common::AdbScreencapMethod::DEFAULT.bits()
+            );
+            assert_eq!(
+                input,
+                maa_framework::common::AdbInputMethod::DEFAULT.bits()
+            );
+            assert_eq!(config, "{}");
+        } else {
+            assert_eq!((screencap, input), (64, 8));
+        }
+    }
 }
 
 /// 连接控制器（异步，通过回调通知完成状态）
