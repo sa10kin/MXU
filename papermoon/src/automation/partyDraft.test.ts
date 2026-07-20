@@ -29,4 +29,19 @@ describe('party draft helpers', () => {
     expect(party).toEqual([{ slot: 3, support: true }]);
     expect(setPartySupport(party, 3, false)).toEqual([]);
   });
+
+  it('drops the orphaned placeholder when moving support off an empty slot', () => {
+    const party = setPartySupport(
+      [
+        { slot: 1, servantId: 10 },
+        { slot: 5, support: true },
+      ],
+      2,
+      true,
+    );
+    expect(party).toEqual([
+      { slot: 1, servantId: 10 },
+      { slot: 2, support: true },
+    ]);
+  });
 });

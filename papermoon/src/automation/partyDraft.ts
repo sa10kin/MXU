@@ -12,10 +12,15 @@ export function updatePartySlot(
 }
 
 export function setPartySupport(party: PartySlot[], slot: number, support: boolean): PartySlot[] {
-  const next = party.map((member) => ({
-    ...member,
-    support: member.slot === slot ? support || undefined : undefined,
-  }));
+  // Clearing the support flag from a previous support slot leaves an empty
+  // placeholder (support slots have no servantId, they reuse SupportPolicy);
+  // drop any such orphaned slot rather than let it fail BattlePlan validation.
+  const next = party
+    .map((member) => ({
+      ...member,
+      support: member.slot === slot ? support || undefined : undefined,
+    }))
+    .filter((member) => member.slot === slot || member.servantId || member.support);
   if (support) {
     const existing = next.find((member) => member.slot === slot);
     return updatePartySlot(next, slot, { ...existing, servantId: undefined, craftEssenceId: undefined, support: true });
