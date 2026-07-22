@@ -19,18 +19,18 @@ describe('SupportPolicy editor helpers', () => {
     expect(validateSupportPolicy(policy)).toEqual([]);
   });
 
-  it('requires a servant or craft essence target', () => {
-    expect(validateSupportPolicy(emptySupportPolicy())).toEqual(['target']);
+  it('allows an empty target to select any support', () => {
+    expect(validateSupportPolicy(emptySupportPolicy())).toEqual([]);
     expect(
       validateSupportPolicy({ ...emptySupportPolicy(), craftEssenceId: 9401270 }),
     ).toEqual([]);
   });
 
-  it('requires the target only when the party uses a support slot', () => {
+  it('does not block a support slot with an empty target', () => {
     const empty = emptySupportPolicy();
     const errors = validateSupportPolicy(empty);
     expect(supportErrorsForParty([{ slot: 1, servantId: 1 }], errors)).toEqual([]);
-    expect(supportErrorsForParty([{ slot: 1, support: true }], errors)).toEqual(['target']);
+    expect(supportErrorsForParty([{ slot: 1, support: true }], errors)).toEqual([]);
   });
 
   it('rejects removed fields', () => {

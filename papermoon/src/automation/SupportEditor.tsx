@@ -56,6 +56,15 @@ export function SupportEditor({
   const selectedFaceUrl = useServantFaceUrl(selectedServant?.id);
 
   useEffect(() => {
+    if (
+      !policy.servantId &&
+      (policy.minServantLevel !== 0 || policy.minNoblePhantasmLevel !== 0)
+    ) {
+      onChange({ ...policy, minServantLevel: 0, minNoblePhantasmLevel: 0 });
+    }
+  }, [onChange, policy]);
+
+  useEffect(() => {
     if (selectedServant) setQuery(servantLabel(selectedServant));
   }, [selectedServant]);
 
@@ -169,6 +178,9 @@ export function SupportEditor({
 
         {catalogError && <p className="text-xs text-warning">{text('support.catalog_missing')}</p>}
         {selectionError && <p className="text-xs text-warning">{text('support.not_found')}</p>}
+        {!policy.servantId && !policy.craftEssenceId && (
+          <p className="text-xs text-warning">{text('support.any_hint')}</p>
+        )}
         {selectedServant && (
           <div className="flex items-center gap-3 rounded-xl border border-border bg-bg-primary p-3">
             <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-bg-secondary">
@@ -207,16 +219,16 @@ export function SupportEditor({
         <div className="grid grid-cols-2 gap-3">
           <NumberField
             label={text('support.min_level')}
-            value={policy.minServantLevel}
+            value={policy.servantId ? policy.minServantLevel : undefined}
             max={120}
-            disabled={disabled}
+            disabled={disabled || !policy.servantId}
             onChange={(value) => updateNumber('minServantLevel', value)}
           />
           <NumberField
             label={text('support.min_np')}
-            value={policy.minNoblePhantasmLevel}
+            value={policy.servantId ? policy.minNoblePhantasmLevel : undefined}
             max={5}
-            disabled={disabled}
+            disabled={disabled || !policy.servantId}
             onChange={(value) => updateNumber('minNoblePhantasmLevel', value)}
           />
         </div>
@@ -295,14 +307,14 @@ function NumberField({
   onChange,
 }: {
   label: string;
-  value: number;
+  value?: number;
   max: number;
   disabled: boolean;
   onChange: (value: number) => void;
 }) {
-  const [draft, setDraft] = useState(String(value));
+  const [draft, setDraft] = useState(value === undefined ? '' : String(value));
 
-  useEffect(() => setDraft(String(value)), [value]);
+  useEffect(() => setDraft(value === undefined ? '' : String(value)), [value]);
 
   const commit = () => {
     const parsed = Number(draft);

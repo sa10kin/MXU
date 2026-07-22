@@ -58,7 +58,6 @@ export function validateSupportPolicy(policy: SupportPolicy): string[] {
     errors.push('craftEssenceId');
   }
   if (policy.craftEssenceMlb && !policy.craftEssenceId) errors.push('craftEssenceMlb');
-  if (!policy.servantId && !policy.craftEssenceId) errors.push('target');
   if (
     !Number.isInteger(policy.minServantLevel) ||
     policy.minServantLevel < 0 ||
