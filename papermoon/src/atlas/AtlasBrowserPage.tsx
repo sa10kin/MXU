@@ -28,19 +28,14 @@ import {
 } from './atlasService';
 import { loadAtlasAliases, saveAtlasAliases, type AtlasAliases } from './atlasAliases';
 import { classIconRemoteUrl, resolveClassIconSrc } from './classIcons';
-import type { BattlePlan } from '../automation/battlePlan';
+import {
+  loadBattlePresets,
+  saveBattlePresets,
+  type BattlePreset,
+} from '../automation/battlePresets';
 
 type BrowserTab = 'servants' | 'craftEssences' | 'presets';
 type AliasDataset = Exclude<BrowserTab, 'presets'>;
-
-interface BattlePreset {
-  id: string;
-  name: string;
-  updatedAt?: string;
-  plan: BattlePlan;
-}
-
-export const BATTLE_PRESET_STORAGE_KEY = 'papermoon-battle-presets-v1';
 
 const CLASS_FILTERS = [
   { key: 'saber', iconId: 1, label: 'Saber' },
@@ -60,7 +55,9 @@ const CLASS_FILTERS = [
   { key: 'beast', iconId: 33, label: 'Beast' },
   { key: 'unknown', iconId: 97, label: 'Unknown' },
 ];
-const STANDARD_CLASSES = new Set(CLASS_FILTERS.map(({ key }) => key).filter((key) => key !== 'unknown'));
+const STANDARD_CLASSES = new Set(
+  CLASS_FILTERS.map(({ key }) => key).filter((key) => key !== 'unknown'),
+);
 
 export function AtlasBrowserPage({ onClose }: { onClose: () => void }) {
   const { t } = useTranslation();
@@ -69,7 +66,7 @@ export function AtlasBrowserPage({ onClose }: { onClose: () => void }) {
   const [servants, setServants] = useState<AtlasBasicServantEntry[]>([]);
   const [craftEssences, setCraftEssences] = useState<AtlasCraftEssenceEntry[]>([]);
   const [aliases, setAliases] = useState<AtlasAliases>(loadAtlasAliases);
-  const [presets, setPresets] = useState<BattlePreset[]>(loadPresets);
+  const [presets, setPresets] = useState<BattlePreset[]>(loadBattlePresets);
   const [query, setQuery] = useState('');
   const [className, setClassName] = useState('');
   const [loading, setLoading] = useState(true);
@@ -257,7 +254,10 @@ export function AtlasBrowserPage({ onClose }: { onClose: () => void }) {
                 />
               </label>
               {tab === 'servants' && (
-                <div className="flex gap-2 overflow-x-auto pb-1" aria-label={t('atlasBrowser.allClasses')}>
+                <div
+                  className="flex gap-2 overflow-x-auto pb-1"
+                  aria-label={t('atlasBrowser.allClasses')}
+                >
                   <ClassFilterButton
                     active={!className}
                     iconId={1001}
@@ -347,6 +347,7 @@ export function AtlasBrowserPage({ onClose }: { onClose: () => void }) {
             <PresetList
               presets={presets}
               selected={selectedPreset}
+              servants={servants}
               onSelect={setSelectedPreset}
               onDelete={setDeletePreset}
             />
@@ -364,7 +365,7 @@ export function AtlasBrowserPage({ onClose }: { onClose: () => void }) {
         onConfirm={() => {
           if (!deletePreset) return;
           const next = presets.filter((preset) => preset.id !== deletePreset.id);
-          localStorage.setItem(BATTLE_PRESET_STORAGE_KEY, JSON.stringify(next));
+          saveBattlePresets(next);
           setPresets(next);
           if (selectedPreset?.id === deletePreset.id) setSelectedPreset(null);
           setDeletePreset(null);
@@ -602,15 +603,18 @@ function CraftEssenceCard({
 function PresetList({
   presets,
   selected,
+  servants,
   onSelect,
   onDelete,
 }: {
   presets: BattlePreset[];
   selected: BattlePreset | null;
+  servants: AtlasBasicServantEntry[];
   onSelect: (preset: BattlePreset | null) => void;
   onDelete: (preset: BattlePreset) => void;
 }) {
   const { t } = useTranslation();
+  const servantNames = new Map(servants.map((servant) => [servant.id, servant.name]));
   if (presets.length === 0) {
     return (
       <div className="rounded-2xl border border-dashed border-border py-16 text-center">
@@ -624,7 +628,12 @@ function PresetList({
     <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(320px,0.8fr)]">
       <div className="space-y-3">
         {presets.map((preset) => (
-          <article key={preset.id} className="rounded-2xl border border-border bg-bg-secondary p-4">
+          <article
+            key={preset.id}
+            className={`rounded-2xl border bg-bg-secondary p-4 transition-colors ${
+              selected?.id === preset.id ? 'border-accent ring-1 ring-accent/20' : 'border-border'
+            }`}
+          >
             <div className="flex items-start justify-between gap-3">
               <div>
                 <h3 className="font-medium text-text-primary">{preset.name}</h3>
@@ -676,7 +685,11 @@ function PresetList({
                 >
                   {t('atlasBrowser.partySlot', {
                     slot: member.slot,
-                    servant: member.support ? t('atlasBrowser.support') : (member.servantId ?? '—'),
+                    servant: member.support
+                      ? (servantNames.get(selected.supportPolicy?.servantId) ??
+                        t('atlasBrowser.support'))
+                      : (servantNames.get(member.servantId) ??
+                        (member.servantId ? `#${member.servantId}` : '—')),
                     craftEssence: member.craftEssenceId ?? '—',
                   })}
                 </p>
@@ -780,13 +793,4 @@ export function matchesClassFilter(value: string | undefined, filter: string): b
   return filter === 'unknown'
     ? !STANDARD_CLASSES.has(className) && !className.startsWith('beast')
     : className === filter;
-}
-
-function loadPresets(): BattlePreset[] {
-  try {
-    const value = JSON.parse(localStorage.getItem(BATTLE_PRESET_STORAGE_KEY) ?? '[]') as unknown;
-    return Array.isArray(value) ? (value as BattlePreset[]) : [];
-  } catch {
-    return [];
-  }
 }

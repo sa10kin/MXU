@@ -13,6 +13,7 @@ import {
   LayoutGrid,
   Database,
   ChevronRight,
+  MousePointerClick,
 } from 'lucide-react';
 import clsx from 'clsx';
 import { useIsMobile } from '@/hooks/useIsMobile';
@@ -25,6 +26,7 @@ import { loadIconAsDataUrl } from '@/services/contentResolver';
 import { ConfirmDialog } from './ConfirmDialog';
 import { OptionEditor } from './OptionEditor';
 import { AtlasSettingsSection } from '@papermoon/atlas/AtlasSettingsSection';
+import { BattleDelaySettingsSection } from '@papermoon/automation/BattleDelaySettingsSection';
 import {
   AppearanceSection,
   HotkeySection,
@@ -262,12 +264,27 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
 
   // 目录索引配置
   const tocItems = useMemo(() => {
-    const items = [{ id: 'appearance', icon: Paintbrush, labelKey: 'settings.appearance' }];
+    const items: {
+      id: string;
+      icon: typeof Paintbrush;
+      labelKey?: string;
+      label?: string;
+    }[] = [{ id: 'appearance', icon: Paintbrush, labelKey: 'settings.appearance' }];
     if (settingsSections.length > 0) {
       items.push({ id: 'task-settings', icon: LayoutGrid, labelKey: 'settings.taskSettings' });
     }
     items.push({ id: 'general', icon: Settings2, labelKey: 'settings.general' });
     if (showAtlas) {
+      items.push({
+        id: 'click-delays',
+        icon: MousePointerClick,
+        label:
+          resolveSettingsText(
+            '$click_delay.title',
+            'Click delay',
+            interfaceTranslations[langKey] || {},
+          ) || 'Click delay',
+      });
       items.push({ id: 'atlas', icon: Database, labelKey: 'settings.atlas' });
     }
     items.push({ id: 'hotkeys', icon: Key, labelKey: 'settings.hotkeys' });
@@ -279,7 +296,13 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
       { id: 'about', icon: Info, labelKey: 'about.title' },
     );
     return items;
-  }, [projectInterface?.mirrorchyan_rid, settingsSections.length, showAtlas]);
+  }, [
+    interfaceTranslations,
+    langKey,
+    projectInterface?.mirrorchyan_rid,
+    settingsSections.length,
+    showAtlas,
+  ]);
 
   // 当前高亮的 section
   const [activeSection, setActiveSection] = useState('appearance');
@@ -380,7 +403,7 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
                   )}
                 >
                   <Icon className="w-4 h-4 flex-shrink-0" />
-                  <span className="truncate">{t(item.labelKey)}</span>
+                  <span className="truncate">{item.label ?? t(item.labelKey!)}</span>
                 </button>
               );
             })}
@@ -434,7 +457,7 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
                     )}
                   >
                     <Icon className="w-4 h-4 flex-shrink-0" />
-                    <span className="truncate">{t(item.labelKey)}</span>
+                    <span className="truncate">{item.label ?? t(item.labelKey!)}</span>
                   </button>
                 );
               })}
@@ -475,6 +498,9 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
 
             {/* 通用设置 */}
             <GeneralSection />
+
+            {/* PaperMoon 自动战斗点击延迟 */}
+            {showAtlas && <BattleDelaySettingsSection />}
 
             {/* PaperMoon Atlas 图鉴数据 */}
             {showAtlas && <AtlasSettingsSection />}

@@ -38,7 +38,10 @@ export function ConfirmDialog({
   useEffect(() => {
     if (!open) return;
     cancelBtnRef.current?.focus();
+  }, [open]);
 
+  useEffect(() => {
+    if (!open) return;
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         e.preventDefault();

@@ -8,6 +8,19 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use tauri::{AppHandle, Emitter, Manager};
 
+#[cfg(target_os = "macos")]
+fn release_unused_heap_pages() {
+    unsafe extern "C" {
+        fn malloc_zone_pressure_relief(zone: *mut std::ffi::c_void, goal: usize) -> usize;
+    }
+
+    let released = unsafe { malloc_zone_pressure_relief(std::ptr::null_mut(), 0) };
+    log::debug!("Released {} bytes of unused malloc pages", released);
+}
+
+#[cfg(not(target_os = "macos"))]
+fn release_unused_heap_pages() {}
+
 /// 发送回调事件到前端（Tauri WebView + WebSocket 浏览器客户端）
 pub fn emit_callback_event<S: Into<String>>(app: &AppHandle, message: S, details: S) {
     let message = message.into();
@@ -130,6 +143,7 @@ pub fn handle_task_callback(
     // 通知前端刷新状态
     emit_state_changed(app, instance_id, "task-progress");
     if all_done {
+        release_unused_heap_pages();
         emit_state_changed(app, instance_id, "tasks-completed");
     }
 }

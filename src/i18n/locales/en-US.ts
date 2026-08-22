@@ -26,6 +26,8 @@ export default {
     newTab: 'New Tab',
     closeTab: 'Close Tab',
     settings: 'Settings',
+    showRightPanel: 'Show right panel',
+    hideRightPanel: 'Hide right panel',
     about: 'About',
     renameInstance: 'Rename Instance',
     instanceName: 'Instance Name',

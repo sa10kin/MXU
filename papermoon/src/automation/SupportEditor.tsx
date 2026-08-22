@@ -1,8 +1,13 @@
 import { useEffect, useId, useMemo, useState } from 'react';
 import { Search, Users } from 'lucide-react';
 
-import { ATLAS_SERVERS, getBasicServants, readCachedBasicServantFace } from '../atlas/atlasService';
-import type { SupportPolicy } from './supportPolicy';
+import {
+  CHINESE_ATLAS_SERVERS,
+  getBasicServants,
+  readCachedBasicServantFace,
+  type AtlasServer,
+} from '../atlas/atlasService';
+import { supportCraftEssences, type SupportPolicy } from './supportPolicy';
 import { CraftEssenceConditionEditor } from './CraftEssenceConditionEditor';
 import {
   filterSupportServants,
@@ -13,11 +18,15 @@ import {
 } from './supportSearch';
 
 export function SupportEditor({
+  scopeServer,
+  displayServer,
   policy,
   disabled,
   text,
   onChange,
 }: {
+  scopeServer: AtlasServer;
+  displayServer: AtlasServer;
   policy: SupportPolicy;
   disabled: boolean;
   text: (key: string) => string;
@@ -33,21 +42,24 @@ export function SupportEditor({
 
   useEffect(() => {
     let active = true;
+    setServants([]);
     void Promise.allSettled(
-      ATLAS_SERVERS.map(async (server) => [server, await getBasicServants(server)] as const),
+      CHINESE_ATLAS_SERVERS.map(
+        async (server) => [server, await getBasicServants(server)] as const,
+      ),
     ).then((results) => {
       if (!active) return;
       const entries = results.flatMap((result) =>
         result.status === 'fulfilled' ? [result.value] : [],
       );
-      const merged = mergeSupportServants(Object.fromEntries(entries));
+      const merged = mergeSupportServants(Object.fromEntries(entries), scopeServer, displayServer);
       setServants(merged);
       setCatalogError(merged.length === 0);
     });
     return () => {
       active = false;
     };
-  }, []);
+  }, [displayServer, scopeServer]);
 
   const selectedServant = useMemo(
     () => servants.find(({ servant }) => servant.id === policy.servantId)?.servant,
@@ -56,10 +68,7 @@ export function SupportEditor({
   const selectedFaceUrl = useServantFaceUrl(selectedServant?.id);
 
   useEffect(() => {
-    if (
-      !policy.servantId &&
-      (policy.minServantLevel !== 0 || policy.minNoblePhantasmLevel !== 0)
-    ) {
+    if (!policy.servantId && (policy.minServantLevel !== 0 || policy.minNoblePhantasmLevel !== 0)) {
       onChange({ ...policy, minServantLevel: 0, minNoblePhantasmLevel: 0 });
     }
   }, [onChange, policy]);
@@ -178,7 +187,7 @@ export function SupportEditor({
 
         {catalogError && <p className="text-xs text-warning">{text('support.catalog_missing')}</p>}
         {selectionError && <p className="text-xs text-warning">{text('support.not_found')}</p>}
-        {!policy.servantId && !policy.craftEssenceId && (
+        {!policy.servantId && supportCraftEssences(policy).length === 0 && (
           <p className="text-xs text-warning">{text('support.any_hint')}</p>
         )}
         {selectedServant && (
@@ -204,12 +213,55 @@ export function SupportEditor({
           </div>
         )}
 
+        <label className="block space-y-1 text-sm text-text-secondary">
+          <span>{text('support.servant_type')}</span>
+          <select
+            value={policy.servantType ?? ''}
+            disabled={disabled}
+            onChange={(event) => {
+              const servantType = event.target.value as '' | 'normal' | 'grand';
+              onChange({
+                ...policy,
+                servantType: servantType || undefined,
+                ...(servantType === 'grand' ? {} : { requireBondCraftEssence: undefined }),
+              });
+            }}
+            className="w-full rounded-lg border border-border bg-bg-primary px-3 py-2 text-text-primary"
+          >
+            <option value="">{text('support.servant_type_any')}</option>
+            <option value="grand">{text('support.servant_type_grand')}</option>
+            <option value="normal">{text('support.servant_type_normal')}</option>
+          </select>
+        </label>
+
         <CraftEssenceConditionEditor
+          scopeServer={scopeServer}
+          displayServer={displayServer}
           policy={policy}
           disabled={disabled}
           text={text}
           onChange={onChange}
         />
+        {policy.servantType === 'grand' && (
+          <div className="space-y-3 rounded-xl border border-accent/25 bg-accent/5 p-3">
+            <label className="flex items-center gap-2 text-sm text-text-primary">
+              <input
+                type="checkbox"
+                checked={Boolean(policy.requireBondCraftEssence)}
+                disabled={disabled}
+                onChange={(event) =>
+                  onChange({
+                    ...policy,
+                    requireBondCraftEssence: event.target.checked || undefined,
+                  })
+                }
+                className="h-4 w-4 accent-accent"
+              />
+              {text('support.bond_ce_required')}
+            </label>
+            <p className="text-xs text-text-muted">{text('support.bond_ce_hint')}</p>
+          </div>
+        )}
       </section>
 
       <section className="space-y-4 rounded-xl border border-border bg-bg-secondary p-4">

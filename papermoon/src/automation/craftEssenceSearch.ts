@@ -1,4 +1,4 @@
-import type { AtlasCraftEssenceEntry } from '../atlas/atlasService';
+import type { AtlasCraftEssenceEntry, AtlasServer } from '../atlas/atlasService';
 
 export interface CraftEssenceOption {
   craftEssence: AtlasCraftEssenceEntry;
@@ -10,14 +10,36 @@ export function buildCraftEssenceOptions(entries: AtlasCraftEssenceEntry[]): Cra
     .filter((entry) => entry.id && entry.collectionNo)
     .map((craftEssence) => ({
       craftEssence,
-      aliases: [
-        craftEssence.name,
-        craftEssence.originalName,
-        craftEssence.nameCn,
-        craftEssence.nameTw,
-        craftEssence.nameJp,
-      ].filter((name): name is string => Boolean(name)),
+      aliases: [craftEssence.name, craftEssence.nameCn, craftEssence.nameTw].filter(
+        (name): name is string => Boolean(name),
+      ),
     }));
+}
+
+export function mergeCraftEssenceOptions(
+  catalogs: Partial<Record<AtlasServer, AtlasCraftEssenceEntry[]>>,
+  scopeServer: AtlasServer,
+  displayServer: AtlasServer,
+): CraftEssenceOption[] {
+  const names = new Map(
+    (catalogs[displayServer] ?? [])
+      .filter((entry) => entry.id)
+      .map((entry) => [entry.id, entry.name]),
+  );
+  const cnNames = new Map(
+    (catalogs.CN ?? []).filter((entry) => entry.id).map((entry) => [entry.id, entry.name]),
+  );
+  const twNames = new Map(
+    (catalogs.TW ?? []).filter((entry) => entry.id).map((entry) => [entry.id, entry.name]),
+  );
+  return buildCraftEssenceOptions(
+    (catalogs[scopeServer] ?? []).map((entry) => ({
+      ...entry,
+      name: names.get(entry.id) ?? entry.name,
+      nameCn: cnNames.get(entry.id) ?? entry.nameCn,
+      nameTw: twNames.get(entry.id) ?? entry.nameTw,
+    })),
+  );
 }
 
 export function craftEssenceLabel(entry: AtlasCraftEssenceEntry): string {

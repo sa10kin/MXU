@@ -26,6 +26,8 @@ export default {
     newTab: '新标签页',
     closeTab: '关闭标签页',
     settings: '设置',
+    showRightPanel: '展开右侧面板',
+    hideRightPanel: '折叠右侧面板',
     about: '关于',
     renameInstance: '重命名实例',
     instanceName: '实例名称',

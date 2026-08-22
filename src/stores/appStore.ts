@@ -1299,7 +1299,7 @@ export const useAppStore = create<AppState>()(
           localLayout?.sidePanelExpanded ?? config.settings.sidePanelExpanded ?? true,
         rightPanelWidth: localLayout?.rightPanelWidth ?? config.settings.rightPanelWidth ?? 320,
         rightPanelCollapsed:
-          localLayout?.rightPanelCollapsed ?? config.settings.rightPanelCollapsed ?? false,
+          localLayout?.rightPanelCollapsed ?? config.settings.rightPanelCollapsed ?? true,
         addTaskPanelHeight: normalizeAddTaskPanelHeight(
           localLayout?.addTaskPanelHeight ?? config.settings.addTaskPanelHeight,
         ),
@@ -1696,7 +1696,7 @@ export const useAppStore = create<AppState>()(
 
     // 右侧面板宽度和折叠状态
     rightPanelWidth: 320,
-    rightPanelCollapsed: false,
+    rightPanelCollapsed: true,
     setRightPanelWidth: (width) => {
       set({ rightPanelWidth: width });
       if (!isTauri()) patchWebUILayout({ rightPanelWidth: width });

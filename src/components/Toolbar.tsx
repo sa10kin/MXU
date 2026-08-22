@@ -44,8 +44,10 @@ import { buildPiEnvVars } from '@/utils/piEnv';
 import {
   PAPERMOON_AUTO_BATTLE_TASK,
   PAPERMOON_BATTLE_PLAN_OPTION,
+  validateAutoBattleOption,
 } from '@papermoon/automation/AutoBattleEditor';
 import { ensureAutoBattleAssets } from '@papermoon/automation/battleAssets';
+import { atlasServerFromFgoClient } from '@papermoon/atlas/atlasService';
 
 const log = loggers.task;
 const PRE_ACTION_CANCELLED_ERROR = 'MXU_PRE_ACTION_CANCELLED';
@@ -314,6 +316,18 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
         addLog(targetId, {
           type: 'error',
           message: t('taskList.noCompatibleTasks'),
+        });
+        return false;
+      }
+      const invalidAutoBattle = compatibleTasks.find(
+        (task) =>
+          task.taskName === PAPERMOON_AUTO_BATTLE_TASK &&
+          validateAutoBattleOption(task.optionValues?.[PAPERMOON_BATTLE_PLAN_OPTION]).length > 0,
+      );
+      if (invalidAutoBattle) {
+        addLog(targetId, {
+          type: 'error',
+          message: resolveI18nText('$auto_battle.editor.status.start_blocked', translations),
         });
         return false;
       }
@@ -655,8 +669,7 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
           await beginPreActionControl(targetId);
           try {
             const assetResult = await ensureAutoBattleAssets({
-              // ponytail: 自动化资源当前仅支持 TW；扩展多服务器时改为从任务资源推导
-              server: 'TW',
+              server: atlasServerFromFgoClient(currentResourceName?.split('_').pop()),
               value: autoBattleTask.optionValues?.[PAPERMOON_BATTLE_PLAN_OPTION],
               emit: (type, message) => addLog(targetId, { type, message }),
               shouldStop: () => preActionStopRequestedRef.current,

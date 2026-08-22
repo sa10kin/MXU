@@ -2,7 +2,7 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { Download, Image, Search, Users } from 'lucide-react';
 
 import {
-  ATLAS_SERVERS,
+  CHINESE_ATLAS_SERVERS,
   downloadCraftEssenceImage,
   ensureCraftEssences,
   getBasicServants,
@@ -10,13 +10,14 @@ import {
   readCachedBasicServantFace,
   readCachedCraftEssenceFace,
   type AtlasCraftEssenceEntry,
+  type AtlasServer,
 } from '../atlas/atlasService';
 import type { BattlePlan, PartySlot } from './battlePlan';
-import type { SupportPolicy } from './supportPolicy';
+import { supportCraftEssences, type SupportPolicy } from './supportPolicy';
 import {
-  buildCraftEssenceOptions,
   craftEssenceLabel,
   filterCraftEssences,
+  mergeCraftEssenceOptions,
   resolveCraftEssence,
   type CraftEssenceOption,
 } from './craftEssenceSearch';
@@ -30,12 +31,16 @@ import {
 } from './supportSearch';
 
 export function PartyEditor({
+  scopeServer,
+  displayServer,
   plan,
   supportPolicy,
   disabled,
   text,
   onChange,
 }: {
+  scopeServer: AtlasServer;
+  displayServer: AtlasServer;
   plan: BattlePlan;
   supportPolicy: SupportPolicy;
   disabled: boolean;
@@ -51,24 +56,36 @@ export function PartyEditor({
 
   useEffect(() => {
     let active = true;
+    setServants([]);
+    setCraftEssences([]);
     void Promise.allSettled(
-      ATLAS_SERVERS.map(async (server) => [server, await getBasicServants(server)] as const),
+      CHINESE_ATLAS_SERVERS.map(
+        async (server) => [server, await getBasicServants(server)] as const,
+      ),
     ).then((results) => {
       if (!active) return;
       const entries = results.flatMap((result) =>
         result.status === 'fulfilled' ? [result.value] : [],
       );
-      const merged = mergeSupportServants(Object.fromEntries(entries));
+      const merged = mergeSupportServants(Object.fromEntries(entries), scopeServer, displayServer);
       setServants(merged);
       setCatalogMissing(merged.length === 0);
     });
-    void getCraftEssences('TW').then((entries) => {
-      if (active) setCraftEssences(buildCraftEssenceOptions(entries));
+    void Promise.all(
+      CHINESE_ATLAS_SERVERS.map(
+        async (server) => [server, await getCraftEssences(server)] as const,
+      ),
+    ).then((entries) => {
+      if (active) {
+        setCraftEssences(
+          mergeCraftEssenceOptions(Object.fromEntries(entries), scopeServer, displayServer),
+        );
+      }
     });
     return () => {
       active = false;
     };
-  }, []);
+  }, [displayServer, scopeServer]);
 
   const loadCraftEssences = useCallback(async () => {
     if (craftEssenceLoadingRef.current || craftEssences.length > 0) return;
@@ -76,14 +93,21 @@ export function PartyEditor({
     setCraftEssenceLoading(true);
     setCraftEssenceError(false);
     try {
-      setCraftEssences(buildCraftEssenceOptions(await ensureCraftEssences('TW')));
+      const entries = await Promise.all(
+        CHINESE_ATLAS_SERVERS.map(
+          async (server) => [server, await ensureCraftEssences(server)] as const,
+        ),
+      );
+      setCraftEssences(
+        mergeCraftEssenceOptions(Object.fromEntries(entries), scopeServer, displayServer),
+      );
     } catch {
       setCraftEssenceError(true);
     } finally {
       craftEssenceLoadingRef.current = false;
       setCraftEssenceLoading(false);
     }
-  }, [craftEssences.length]);
+  }, [craftEssences.length, displayServer, scopeServer]);
 
   const updateSlot = (slot: number, patch: Partial<PartySlot> | null) => {
     onChange({ ...plan, party: updatePartySlot(plan.party, slot, patch) });
@@ -106,6 +130,7 @@ export function PartyEditor({
           <div className="grid gap-3 md:grid-cols-3">
             {row.slots.map((slot) => (
               <PartySlotCard
+                scopeServer={scopeServer}
                 key={slot}
                 slot={slot}
                 member={plan.party.find((item) => item.slot === slot)}
@@ -127,6 +152,7 @@ export function PartyEditor({
 }
 
 function PartySlotCard({
+  scopeServer,
   slot,
   member,
   supportPolicy,
@@ -138,6 +164,7 @@ function PartySlotCard({
   onChange,
   onSupportChange,
 }: {
+  scopeServer: AtlasServer;
   slot: number;
   member?: PartySlot;
   supportPolicy: SupportPolicy;
@@ -154,9 +181,13 @@ function PartySlotCard({
   )?.servant;
   const selectedCraftEssence = craftEssences.find(
     ({ craftEssence }) =>
-      craftEssence.id ===
-      (member?.support ? supportPolicy.craftEssenceId : member?.craftEssenceId),
+      craftEssence.id === (member?.support ? supportPolicy.craftEssenceId : member?.craftEssenceId),
   )?.craftEssence;
+  const supportCraftEssenceNames = supportCraftEssences(supportPolicy).map(
+    ({ id }) =>
+      craftEssences.find(({ craftEssence }) => craftEssence.id === id)?.craftEssence.name ??
+      `#${id}`,
+  );
 
   return (
     <article className="space-y-3 rounded-xl border border-border bg-bg-secondary p-3">
@@ -184,14 +215,35 @@ function PartySlotCard({
         onSelect={(servantId) => (servantId ? onChange({ servantId }) : onChange(null))}
       />
 
-      <CraftEssenceSlotField
-        selected={selectedCraftEssence}
-        options={craftEssences}
-        disabled={disabled || !member || Boolean(member.support)}
-        text={text}
-        loadOptions={loadCraftEssences}
-        onSelect={(craftEssenceId) => onChange({ craftEssenceId: craftEssenceId || undefined })}
-      />
+      {member?.support ? (
+        <div
+          className={`grid gap-2 border-t border-border pt-3 ${supportPolicy.servantType === 'grand' ? 'grid-cols-2' : 'grid-cols-1'}`}
+        >
+          {(supportPolicy.servantType === 'grand'
+            ? ['party.normal_ce', 'party.reward_ce']
+            : ['party.ce_candidates']
+          ).map((label) => (
+            <div key={label} className="min-w-0 rounded-lg bg-bg-primary px-2.5 py-2">
+              <div className="text-[11px] text-text-muted">{text(label)}</div>
+              <div className="truncate text-xs text-text-primary">
+                {supportCraftEssenceNames.length > 0
+                  ? supportCraftEssenceNames.join(' / ')
+                  : text('party.ce_none')}
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <CraftEssenceSlotField
+          scopeServer={scopeServer}
+          selected={selectedCraftEssence}
+          options={craftEssences}
+          disabled={disabled || !member}
+          text={text}
+          loadOptions={loadCraftEssences}
+          onSelect={(craftEssenceId) => onChange({ craftEssenceId: craftEssenceId || undefined })}
+        />
+      )}
     </article>
   );
 }
@@ -289,6 +341,7 @@ function ServantSlotField({
 }
 
 function CraftEssenceSlotField({
+  scopeServer,
   selected,
   options,
   disabled,
@@ -296,6 +349,7 @@ function CraftEssenceSlotField({
   loadOptions,
   onSelect,
 }: {
+  scopeServer: AtlasServer;
   selected?: AtlasCraftEssenceEntry;
   options: CraftEssenceOption[];
   disabled: boolean;
@@ -311,7 +365,7 @@ function CraftEssenceSlotField({
   const [imageVersion, setImageVersion] = useState(0);
   const listboxId = useId();
   const candidates = useMemo(() => filterCraftEssences(options, query), [options, query]);
-  const imageUrl = useCraftEssenceImage(selected, imageVersion);
+  const imageUrl = useCraftEssenceImage(scopeServer, selected, imageVersion);
 
   useEffect(() => {
     setQuery(selected ? craftEssenceLabel(selected) : '');
@@ -336,7 +390,7 @@ function CraftEssenceSlotField({
           setDownloading(true);
           setDownloadError(false);
           try {
-            await downloadCraftEssenceImage('TW', selected.collectionNo ?? selected.id ?? 0);
+            await downloadCraftEssenceImage(scopeServer, selected.collectionNo ?? selected.id ?? 0);
             setImageVersion((current) => current + 1);
           } catch {
             setDownloadError(true);
@@ -474,6 +528,7 @@ function useCachedImage(
 }
 
 function useCraftEssenceImage(
+  server: AtlasServer,
   craftEssence: AtlasCraftEssenceEntry | undefined,
   version: number,
 ): string | null {
@@ -483,7 +538,7 @@ function useCraftEssenceImage(
     let objectUrl: string | null = null;
     setUrl(null);
     if (craftEssence) {
-      void readCachedCraftEssenceFace('TW', craftEssence).then((bytes) => {
+      void readCachedCraftEssenceFace(server, craftEssence).then((bytes) => {
         if (!active || !bytes) return;
         objectUrl = URL.createObjectURL(new Blob([bytes], { type: 'image/png' }));
         setUrl(objectUrl);
@@ -493,6 +548,6 @@ function useCraftEssenceImage(
       active = false;
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
-  }, [craftEssence, version]);
+  }, [craftEssence, server, version]);
   return url;
 }

@@ -18,6 +18,7 @@ import {
   ChevronsLeft,
   ChevronsRight,
   PanelRightClose,
+  PanelRightOpen,
   Bell,
   History,
   Share2,
@@ -87,6 +88,8 @@ export function TabBar() {
     removeAnimatingTabId,
     startTabCloseAnimation,
     confirmBeforeDelete,
+    rightPanelCollapsed,
+    setRightPanelCollapsed,
   } = useAppStore();
 
   // 使用全局状态控制更新面板显示
@@ -593,41 +596,26 @@ export function TabBar() {
         )}
         {projectInterface?.name === 'PaperMoon' && (
           <button
-            onClick={() => !topBarLocked && setCurrentPage('atlas')}
-            disabled={topBarLocked}
-            className={clsx(
-              'p-2 rounded-md transition-colors',
-              topBarLocked
-                ? 'cursor-not-allowed opacity-50'
-                : 'hover:bg-bg-hover text-text-secondary',
-            )}
+            onClick={() => setCurrentPage('atlas')}
+            className="p-2 rounded-md transition-colors hover:bg-bg-hover text-text-secondary"
             title={t('atlasBrowser.title')}
           >
             <BookOpen className="w-4 h-4" />
           </button>
         )}
         <button
-          onClick={() => !topBarLocked && toggleDashboardView()}
-          disabled={topBarLocked}
+          onClick={toggleDashboardView}
           className={clsx(
             'p-2 rounded-md transition-colors',
-            topBarLocked
-              ? 'cursor-not-allowed opacity-50'
-              : dashboardView
-                ? 'bg-accent/10 text-accent'
-                : 'hover:bg-bg-hover text-text-secondary',
+            dashboardView ? 'bg-accent/10 text-accent' : 'hover:bg-bg-hover text-text-secondary',
           )}
           title={t('dashboard.toggle')}
         >
           <LayoutGrid className="w-4 h-4" />
         </button>
         <button
-          onClick={() => !topBarLocked && toggleTheme()}
-          disabled={topBarLocked}
-          className={clsx(
-            'p-2 rounded-md transition-colors',
-            topBarLocked ? 'cursor-not-allowed opacity-50' : 'hover:bg-bg-hover',
-          )}
+          onClick={toggleTheme}
+          className="p-2 rounded-md transition-colors hover:bg-bg-hover"
           title={
             resolveThemeMode(theme) === 'light' ? t('settings.themeDark') : t('settings.themeLight')
           }
@@ -639,15 +627,30 @@ export function TabBar() {
           )}
         </button>
         <button
-          onClick={() => !topBarLocked && setCurrentPage('settings')}
-          disabled={topBarLocked}
-          className={clsx(
-            'p-2 rounded-md transition-colors',
-            topBarLocked ? 'cursor-not-allowed opacity-50' : 'hover:bg-bg-hover',
-          )}
+          onClick={() => setCurrentPage('settings')}
+          className="p-2 rounded-md transition-colors hover:bg-bg-hover"
           title={t('titleBar.settings')}
         >
           <Settings className="w-4 h-4 text-text-secondary" />
+        </button>
+        <button
+          onClick={() => setRightPanelCollapsed(!rightPanelCollapsed)}
+          className={clsx(
+            'p-2 rounded-md transition-colors',
+            rightPanelCollapsed
+              ? 'bg-accent/10 text-accent'
+              : 'hover:bg-bg-hover text-text-secondary',
+          )}
+          title={t(rightPanelCollapsed ? 'titleBar.showRightPanel' : 'titleBar.hideRightPanel')}
+          aria-label={t(
+            rightPanelCollapsed ? 'titleBar.showRightPanel' : 'titleBar.hideRightPanel',
+          )}
+        >
+          {rightPanelCollapsed ? (
+            <PanelRightOpen className="w-4 h-4" />
+          ) : (
+            <PanelRightClose className="w-4 h-4" />
+          )}
         </button>
       </div>
 

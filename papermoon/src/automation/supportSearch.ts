@@ -8,23 +8,30 @@ export interface SupportServantOption {
 
 export function mergeSupportServants(
   catalogs: Partial<Record<AtlasServer, AtlasBasicServantEntry[]>>,
-  displayServer: AtlasServer = 'TW',
+  scopeServer: AtlasServer = 'TW',
+  displayServer: AtlasServer = scopeServer,
   savedAliases: Record<string, string[]> = loadAtlasAliases().servants,
 ): SupportServantOption[] {
   const merged = new Map<number, SupportServantOption>();
 
-  for (const entries of Object.values(catalogs)) {
+  for (const entry of catalogs[scopeServer] ?? []) {
+    if (!entry.id) continue;
+    merged.set(entry.id, { servant: entry, aliases: [] });
+  }
+
+  for (const entries of [catalogs.CN, catalogs.TW]) {
     for (const entry of entries ?? []) {
-      if (!entry.id) continue;
-      const current = merged.get(entry.id) ?? { servant: entry, aliases: [] };
+      if (!entry.id || !merged.has(entry.id)) continue;
+      const current = merged.get(entry.id)!;
       const aliasKey = String(entry.collectionNo ?? entry.id);
       current.aliases.push(...servantNames(entry), ...(savedAliases[aliasKey] ?? []));
-      merged.set(entry.id, current);
     }
   }
 
   for (const entry of catalogs[displayServer] ?? []) {
-    if (entry.id && merged.has(entry.id)) merged.get(entry.id)!.servant = entry;
+    if (entry.id && merged.has(entry.id)) {
+      merged.get(entry.id)!.servant = { ...merged.get(entry.id)!.servant, name: entry.name };
+    }
   }
 
   return [...merged.values()]
@@ -74,13 +81,9 @@ export function filterSupportServants(
 }
 
 function servantNames(servant: AtlasBasicServantEntry): string[] {
-  return [
-    servant.name,
-    servant.originalName,
-    servant.nameCn,
-    servant.nameTw,
-    servant.nameJp,
-  ].filter((name): name is string => Boolean(name));
+  return [servant.name, servant.nameCn, servant.nameTw].filter((name): name is string =>
+    Boolean(name),
+  );
 }
 
 function normalize(value: string): string {

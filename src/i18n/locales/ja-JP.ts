@@ -25,6 +25,8 @@ export default {
     newTab: '新しいタブ',
     closeTab: 'タブを閉じる',
     settings: '設定',
+    showRightPanel: '右パネルを表示',
+    hideRightPanel: '右パネルを隠す',
     about: 'このアプリについて',
     renameInstance: 'インスタンス名を変更',
     instanceName: 'インスタンス名',

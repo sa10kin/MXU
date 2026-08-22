@@ -1,13 +1,19 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ChevronDown, ChevronUp, Plus, Trash2 } from 'lucide-react';
 
-import { ATLAS_SERVERS, getBasicServants, readCachedBasicServantFace } from '../atlas/atlasService';
+import {
+  CHINESE_ATLAS_SERVERS,
+  getBasicServants,
+  readCachedBasicServantFace,
+  type AtlasServer,
+} from '../atlas/atlasService';
 import type { BattleAction, BattlePlan, Turn } from './battlePlan';
 import {
   addAction,
   addAttackCard,
   addTurn,
   addWave,
+  formationBeforeAction,
   moveAction,
   removeAction,
   removeAttackCard,
@@ -22,12 +28,16 @@ import type { SupportPolicy } from './supportPolicy';
 import { mergeSupportServants, type SupportServantOption } from './supportSearch';
 
 export function BattleEditor({
+  scopeServer,
+  displayServer,
   plan,
   supportPolicy,
   disabled,
   text,
   onChange,
 }: {
+  scopeServer: AtlasServer;
+  displayServer: AtlasServer;
   plan: BattlePlan;
   supportPolicy: SupportPolicy;
   disabled: boolean;
@@ -44,19 +54,22 @@ export function BattleEditor({
 
   useEffect(() => {
     let active = true;
+    setServants([]);
     void Promise.allSettled(
-      ATLAS_SERVERS.map(async (server) => [server, await getBasicServants(server)] as const),
+      CHINESE_ATLAS_SERVERS.map(
+        async (server) => [server, await getBasicServants(server)] as const,
+      ),
     ).then((results) => {
       if (!active) return;
       const entries = results.flatMap((result) =>
         result.status === 'fulfilled' ? [result.value] : [],
       );
-      setServants(mergeSupportServants(Object.fromEntries(entries)));
+      setServants(mergeSupportServants(Object.fromEntries(entries), scopeServer, displayServer));
     });
     return () => {
       active = false;
     };
-  }, []);
+  }, [displayServer, scopeServer]);
 
   useEffect(() => {
     if (waveIndex >= plan.waves.length) setWaveIndex(Math.max(0, plan.waves.length - 1));
@@ -71,13 +84,15 @@ export function BattleEditor({
     }
   }, [actionIndex, turn?.actions.length]);
 
-  const partySlots = useMemo(() => plan.party.map(({ slot }) => slot).sort(), [plan.party]);
+  const formation = useMemo(
+    () => formationBeforeAction(plan, waveIndex, turnIndex, actionIndex),
+    [actionIndex, plan, turnIndex, waveIndex],
+  );
   const commitTurn = (next: Turn) => onChange(updateTurn(plan, waveIndex, turnIndex, next));
 
   return (
-    <div className="space-y-4">
-      <PartyContext plan={plan} supportPolicy={supportPolicy} servants={servants} text={text} />
-      <div className="grid gap-4 xl:grid-cols-[15rem_minmax(18rem,1fr)_minmax(20rem,1fr)]">
+    <div className="@container space-y-4">
+      <div className="grid gap-4 @min-[55rem]:grid-cols-[15rem_minmax(18rem,1fr)_minmax(20rem,1fr)]">
         <section className="space-y-3 rounded-xl border border-border bg-bg-secondary p-3">
           <div className="flex items-center justify-between gap-2">
             <h4 className="font-medium text-text-primary">{text('battle.timeline')}</h4>
@@ -118,7 +133,7 @@ export function BattleEditor({
                     }}
                     className={`flex-1 rounded-lg px-3 py-2 text-left text-sm ${
                       waveIndex === currentWave
-                        ? 'bg-accent text-white'
+                        ? 'border border-accent/30 bg-accent-soft font-medium text-accent'
                         : 'bg-bg-primary text-text-secondary'
                     }`}
                   >
@@ -146,7 +161,7 @@ export function BattleEditor({
                           }}
                           className={`flex-1 rounded-md px-2 py-1.5 text-left text-xs ${
                             turnIndex === currentTurn
-                              ? 'bg-accent-soft text-accent'
+                              ? 'bg-accent font-medium text-white shadow-sm'
                               : 'text-text-secondary hover:bg-bg-hover'
                           }`}
                         >
@@ -250,13 +265,11 @@ export function BattleEditor({
                   onChange={(event) => setNewAction(event.target.value as DraftActionType)}
                   className="min-w-0 flex-1 rounded-lg border border-border bg-bg-primary px-2 py-2 text-sm"
                 >
-                  {(['servantSkill', 'masterSkill', 'orderChange', 'targetEnemy'] as const).map(
-                    (type) => (
-                      <option key={type} value={type}>
-                        {text(`battle.action.${type}`)}
-                      </option>
-                    ),
-                  )}
+                  {(['servantSkill', 'masterSkill', 'targetEnemy'] as const).map((type) => (
+                    <option key={type} value={type}>
+                      {text(`battle.action.${type}`)}
+                    </option>
+                  ))}
                 </select>
                 <button
                   type="button"
@@ -281,7 +294,18 @@ export function BattleEditor({
               action={turn.actions[actionIndex]}
               turn={turn}
               actionIndex={actionIndex}
-              partySlots={partySlots}
+              frontSlots={formation.slice(0, 3).filter(Boolean)}
+              backSlots={formation.slice(3).filter(Boolean)}
+              slotNames={
+                new Map(
+                  plan.party.map((member) => {
+                    const servantId = member.support ? supportPolicy.servantId : member.servantId;
+                    const name = servants.find((item) => item.servant.id === servantId)?.servant
+                      .name;
+                    return [member.slot, name ?? (servantId ? `#${servantId}` : '—')];
+                  }),
+                )
+              }
               disabled={disabled}
               text={text}
               onChange={commitTurn}
@@ -295,45 +319,41 @@ export function BattleEditor({
   );
 }
 
-function PartyContext({
+export function PartyPreview({
   plan,
   supportPolicy,
-  servants,
+  servantNames,
   text,
 }: {
   plan: BattlePlan;
   supportPolicy: SupportPolicy;
-  servants: SupportServantOption[];
+  servantNames: Map<number, string>;
   text: (key: string) => string;
 }) {
   return (
-    <section className="rounded-xl border border-border bg-bg-secondary p-3">
-      <h4 className="mb-2 text-sm font-medium text-text-primary">{text('battle.party_context')}</h4>
-      <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
-        {[1, 2, 3, 4, 5, 6].map((slot) => {
-          const member = plan.party.find((item) => item.slot === slot);
-          const servantId = member?.support ? supportPolicy.servantId : member?.servantId;
-          const servant = servants.find((option) => option.servant.id === servantId)?.servant;
-          return (
-            <div
-              key={slot}
-              className="flex min-w-0 items-center gap-2 rounded-lg bg-bg-primary p-2 text-xs"
-            >
-              <PartyFace servantId={servantId} />
-              <div className="min-w-0 text-left">
-                <div className="text-text-muted">
-                  {text('party.slot').replace('{number}', String(slot))}
-                  {member?.support ? ` · ${text('party.support')}` : ''}
-                </div>
-                <div className={`truncate ${member ? 'text-text-primary' : 'text-text-muted'}`}>
-                  {servant?.name ?? (servantId ? `#${servantId}` : '—')}
-                </div>
+    <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
+      {[1, 2, 3, 4, 5, 6].map((slot) => {
+        const member = plan.party.find((item) => item.slot === slot);
+        const servantId = member?.support ? supportPolicy.servantId : member?.servantId;
+        return (
+          <div
+            key={slot}
+            className="flex min-w-0 items-center gap-2 rounded-lg bg-bg-primary p-2 text-xs"
+          >
+            <PartyFace servantId={servantId} />
+            <div className="min-w-0 text-left">
+              <div className="text-text-muted">
+                {text('party.slot').replace('{number}', String(slot))}
+                {member?.support ? ` · ${text('party.support')}` : ''}
+              </div>
+              <div className={`truncate ${member ? 'text-text-primary' : 'text-text-muted'}`}>
+                {servantNames.get(servantId ?? 0) ?? (servantId ? `#${servantId}` : '—')}
               </div>
             </div>
-          );
-        })}
-      </div>
-    </section>
+          </div>
+        );
+      })}
+    </div>
   );
 }
 
@@ -366,7 +386,9 @@ function ActionDetails({
   action,
   turn,
   actionIndex,
-  partySlots,
+  frontSlots,
+  backSlots,
+  slotNames,
   disabled,
   text,
   onChange,
@@ -374,7 +396,9 @@ function ActionDetails({
   action: BattleAction;
   turn: Turn;
   actionIndex: number;
-  partySlots: number[];
+  frontSlots: number[];
+  backSlots: number[];
+  slotNames: Map<number, string>;
   disabled: boolean;
   text: (key: string) => string;
   onChange: (turn: Turn) => void;
@@ -385,7 +409,8 @@ function ActionDetails({
     return (
       <AttackDetails
         turn={turn}
-        partySlots={partySlots}
+        frontSlots={frontSlots}
+        slotNames={slotNames}
         disabled={disabled}
         text={text}
         onChange={onChange}
@@ -399,9 +424,10 @@ function ActionDetails({
           <NumberSelect
             label={text('battle.servant')}
             value={action.servant ?? 0}
-            options={partySlots}
+            options={frontSlots}
             disabled={disabled}
             onChange={(servant) => patch({ servant })}
+            optionLabels={slotNames}
           />
           <NumberSelect
             label={text('battle.skill')}
@@ -413,11 +439,40 @@ function ActionDetails({
           <NumberSelect
             label={text('battle.target')}
             value={action.target ?? 0}
-            options={[0, ...partySlots]}
+            options={[0, ...frontSlots]}
             disabled={disabled}
             onChange={(target) => patch({ target: target || undefined })}
             zeroLabel={text('battle.no_target')}
+            optionLabels={slotNames}
           />
+          <SpecialEffectSelect
+            value={action.specialEffect?.type ?? 'none'}
+            options={['none', 'moveSelfToBack', 'retire']}
+            disabled={disabled}
+            text={text}
+            onChange={(effect) =>
+              patch({
+                specialEffect:
+                  effect === 'none'
+                    ? undefined
+                    : effect === 'retire'
+                      ? { type: effect, servant: action.servant }
+                      : { type: 'moveSelfToBack' },
+              })
+            }
+          />
+          {action.specialEffect?.type === 'retire' && (
+            <NumberSelect
+              label={text('battle.retiring_servant')}
+              value={action.specialEffect.servant ?? action.servant ?? 0}
+              options={frontSlots}
+              disabled={disabled}
+              onChange={(servant) =>
+                patch({ specialEffect: { ...action.specialEffect!, servant } })
+              }
+              optionLabels={slotNames}
+            />
+          )}
         </>
       )}
       {action.type === 'masterSkill' && (
@@ -429,32 +484,61 @@ function ActionDetails({
             disabled={disabled}
             onChange={(skill) => patch({ skill })}
           />
-          <NumberSelect
-            label={text('battle.target')}
-            value={action.target ?? 0}
-            options={[0, ...partySlots]}
+          {!action.specialEffect && (
+            <NumberSelect
+              label={text('battle.target')}
+              value={action.target ?? 0}
+              options={[0, ...frontSlots]}
+              disabled={disabled}
+              onChange={(target) => patch({ target: target || undefined })}
+              zeroLabel={text('battle.no_target')}
+              optionLabels={slotNames}
+            />
+          )}
+          <SpecialEffectSelect
+            value={action.specialEffect?.type ?? 'none'}
+            options={['none', 'orderChange']}
             disabled={disabled}
-            onChange={(target) => patch({ target: target || undefined })}
-            zeroLabel={text('battle.no_target')}
+            text={text}
+            onChange={(effect) =>
+              patch({
+                target: undefined,
+                specialEffect:
+                  effect === 'orderChange'
+                    ? {
+                        type: effect,
+                        front: frontSlots[0],
+                        back: backSlots[0],
+                      }
+                    : undefined,
+              })
+            }
           />
-        </>
-      )}
-      {action.type === 'orderChange' && (
-        <>
-          <NumberSelect
-            label={text('battle.front')}
-            value={action.front ?? 1}
-            options={partySlots.filter((slot) => slot <= 3)}
-            disabled={disabled}
-            onChange={(front) => patch({ front })}
-          />
-          <NumberSelect
-            label={text('battle.back')}
-            value={action.back ?? 4}
-            options={partySlots.filter((slot) => slot >= 4)}
-            disabled={disabled}
-            onChange={(back) => patch({ back })}
-          />
+          {action.specialEffect?.type === 'orderChange' && (
+            <>
+              <NumberSelect
+                label={text('battle.front')}
+                value={action.specialEffect.front ?? 0}
+                options={frontSlots}
+                disabled={disabled}
+                invalidLabel={text('battle.select_slot')}
+                onChange={(front) => patch({ specialEffect: { ...action.specialEffect!, front } })}
+                optionLabels={slotNames}
+              />
+              <NumberSelect
+                label={text('battle.back')}
+                value={action.specialEffect.back ?? 0}
+                options={backSlots}
+                disabled={disabled}
+                invalidLabel={text('battle.select_slot')}
+                onChange={(back) => patch({ specialEffect: { ...action.specialEffect!, back } })}
+                optionLabels={slotNames}
+              />
+              {backSlots.length === 0 && (
+                <p className="text-xs text-warning sm:col-span-2">{text('battle.no_reserve')}</p>
+              )}
+            </>
+          )}
         </>
       )}
       {action.type === 'targetEnemy' && (
@@ -470,15 +554,49 @@ function ActionDetails({
   );
 }
 
+function SpecialEffectSelect({
+  value,
+  options,
+  disabled,
+  text,
+  onChange,
+}: {
+  value: string;
+  options: string[];
+  disabled: boolean;
+  text: (key: string) => string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <label className="space-y-1 text-xs text-text-secondary sm:col-span-2">
+      <span>{text('battle.special_effect')}</span>
+      <select
+        value={value}
+        disabled={disabled}
+        onChange={(event) => onChange(event.target.value)}
+        className="w-full rounded-md border border-border bg-bg-primary px-2 py-1.5 text-text-primary"
+      >
+        {options.map((option) => (
+          <option key={option} value={option}>
+            {text(`battle.special_effect.${option}`)}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
 function AttackDetails({
   turn,
-  partySlots,
+  frontSlots,
+  slotNames,
   disabled,
   text,
   onChange,
 }: {
   turn: Turn;
-  partySlots: number[];
+  frontSlots: number[];
+  slotNames: Map<number, string>;
   disabled: boolean;
   text: (key: string) => string;
   onChange: (turn: Turn) => void;
@@ -506,11 +624,13 @@ function AttackDetails({
               <NumberSelect
                 label={text('battle.servant')}
                 value={card.servant ?? 0}
-                options={partySlots}
+                options={frontSlots}
                 disabled={disabled}
+                invalidLabel={text('battle.select_slot')}
                 onChange={(servant) =>
                   onChange(updateAttackCard(turn, index, { ...card, servant }))
                 }
+                optionLabels={slotNames}
               />
               <label className="space-y-1 text-xs text-text-secondary">
                 <span>{text('battle.on_missing')}</span>
@@ -528,13 +648,49 @@ function AttackDetails({
                   <option value="skip">{text('battle.skip')}</option>
                 </select>
               </label>
+              <SpecialEffectSelect
+                value={card.specialEffect?.type ?? 'none'}
+                options={['none', 'moveSelfToBack', 'retire']}
+                disabled={disabled}
+                text={text}
+                onChange={(effect) =>
+                  onChange(
+                    updateAttackCard(turn, index, {
+                      ...card,
+                      specialEffect:
+                        effect === 'none'
+                          ? undefined
+                          : effect === 'retire'
+                            ? { type: effect, servant: card.servant }
+                            : { type: 'moveSelfToBack' },
+                    }),
+                  )
+                }
+              />
+              {card.specialEffect?.type === 'retire' && (
+                <NumberSelect
+                  label={text('battle.retiring_servant')}
+                  value={card.specialEffect.servant ?? card.servant ?? 0}
+                  options={frontSlots}
+                  disabled={disabled}
+                  onChange={(servant) =>
+                    onChange(
+                      updateAttackCard(turn, index, {
+                        ...card,
+                        specialEffect: { ...card.specialEffect!, servant },
+                      }),
+                    )
+                  }
+                  optionLabels={slotNames}
+                />
+              )}
             </div>
           ) : (
             <div className="grid grid-cols-2 gap-2">
               <NumberSelect
                 label={text('battle.servant_optional')}
                 value={card.servant ?? 0}
-                options={[0, ...partySlots]}
+                options={[0, ...frontSlots]}
                 disabled={disabled}
                 onChange={(servant) =>
                   onChange(
@@ -542,6 +698,8 @@ function AttackDetails({
                   )
                 }
                 zeroLabel={text('battle.any_servant')}
+                invalidLabel={text('battle.select_slot')}
+                optionLabels={slotNames}
               />
               <label className="space-y-1 text-xs text-text-secondary">
                 <span>{text('battle.color_order')}</span>
@@ -573,11 +731,7 @@ function AttackDetails({
         <button
           type="button"
           disabled={disabled || (attack.cards?.length ?? 0) >= 3}
-          onClick={() =>
-            onChange(
-              addAttackCard(turn, { type: 'np', servant: partySlots[0] ?? 0, onMissing: 'stop' }),
-            )
-          }
+          onClick={() => onChange(addAttackCard(turn, { type: 'np', onMissing: 'stop' }))}
           className="flex-1 rounded-lg border border-border px-2 py-2 text-xs text-accent disabled:opacity-40"
         >
           {text('battle.add_np')}
@@ -586,7 +740,13 @@ function AttackDetails({
           type="button"
           disabled={disabled || (attack.cards?.length ?? 0) >= 3}
           onClick={() =>
-            onChange(addAttackCard(turn, { type: 'command', colors: ['buster', 'arts', 'quick'] }))
+            onChange(
+              addAttackCard(turn, {
+                type: 'command',
+                servant: -1,
+                colors: ['buster', 'arts', 'quick'],
+              }),
+            )
           }
           className="flex-1 rounded-lg border border-border px-2 py-2 text-xs text-accent disabled:opacity-40"
         >
@@ -604,6 +764,8 @@ function NumberSelect({
   disabled,
   onChange,
   zeroLabel,
+  invalidLabel = '—',
+  optionLabels,
 }: {
   label: string;
   value: number;
@@ -611,22 +773,35 @@ function NumberSelect({
   disabled: boolean;
   onChange: (value: number) => void;
   zeroLabel?: string;
+  invalidLabel?: string;
+  optionLabels?: Map<number, string>;
 }) {
+  const valid = options.includes(value);
   return (
     <label className="space-y-1 text-xs text-text-secondary">
       <span>{label}</span>
       <select
-        value={value}
+        value={valid ? value : ''}
         disabled={disabled || options.length === 0}
         onChange={(event) => onChange(Number(event.target.value))}
         className="w-full rounded-md border border-border bg-bg-primary px-2 py-1.5 text-text-primary"
       >
+        {!valid && (
+          <option value="" disabled>
+            {invalidLabel}
+          </option>
+        )}
         {options.map((option) => (
           <option key={option} value={option}>
             {option === 0 ? zeroLabel : option}
           </option>
         ))}
       </select>
+      {valid && value !== 0 && optionLabels?.get(value) && (
+        <span className="block truncate text-[11px] text-text-muted">
+          {optionLabels.get(value)}
+        </span>
+      )}
     </label>
   );
 }

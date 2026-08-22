@@ -25,6 +25,8 @@ export default {
     newTab: '新標籤頁',
     closeTab: '關閉標籤頁',
     settings: '設定',
+    showRightPanel: '展開右側面板',
+    hideRightPanel: '摺疊右側面板',
     about: '關於',
     renameInstance: '重新命名執行個體',
     instanceName: '執行個體名稱',

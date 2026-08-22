@@ -33,7 +33,12 @@ describe('collectIds', () => {
   });
 
   it('includes support policy targets only when a support slot exists', () => {
-    const support = { schemaVersion: 1, servantId: 2300900, craftEssenceId: 9403990 };
+    const support = {
+      schemaVersion: 1,
+      servantId: 2300900,
+      servantType: 'grand',
+      craftEssences: [{ id: 9403990 }, { id: 9404000 }],
+    };
     const withoutSupportSlot = collectIds(optionValue(plan, support));
     expect(withoutSupportSlot.servantIds).not.toContain(2300900);
 
@@ -41,5 +46,6 @@ describe('collectIds', () => {
     const withSupportSlot = collectIds(optionValue(supportPlan, support));
     expect(withSupportSlot.servantIds).toContain(2300900);
     expect(withSupportSlot.craftEssenceIds).toContain(9403990);
+    expect(withSupportSlot.craftEssenceIds).toContain(9404000);
   });
 });

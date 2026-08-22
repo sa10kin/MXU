@@ -4,11 +4,7 @@ import { getCacheDir, isTauri, joinPath } from '@/utils/paths';
 
 export type AtlasServer = 'TW' | 'CN' | 'JP';
 export type AtlasDataset = 'servants' | 'craftEssences' | 'mysticCodes';
-export type AtlasServantRecognitionAssetKind =
-  | 'faces'
-  | 'narrowFigure'
-  | 'commands'
-  | 'status';
+export type AtlasServantRecognitionAssetKind = 'faces' | 'narrowFigure' | 'commands' | 'status';
 
 export interface AtlasDatasetStatus {
   dataset: AtlasDataset;
@@ -163,6 +159,7 @@ const EXPORT_FILES: Record<AtlasDataset, string> = {
 };
 
 export const ATLAS_SERVERS: AtlasServer[] = ['TW', 'CN', 'JP'];
+export const CHINESE_ATLAS_SERVERS: AtlasServer[] = ['CN', 'TW'];
 export const ATLAS_DATASETS: AtlasDataset[] = ['servants', 'craftEssences', 'mysticCodes'];
 
 export function atlasServerFromFgoClient(caseName?: string): AtlasServer {

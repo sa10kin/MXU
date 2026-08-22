@@ -18,7 +18,7 @@ import {
   type AtlasServer,
 } from '../atlas/atlasService';
 import { parseBattlePlan } from './battlePlan';
-import { parseSupportPolicy } from './supportPolicy';
+import { parseSupportPolicy, supportCraftEssences } from './supportPolicy';
 
 const log = loggers.task;
 
@@ -46,7 +46,7 @@ export function collectIds(value: OptionValue): {
   if (plan.party.some((member) => member.support)) {
     const policy = parseSupportPolicy(value.values.support || '');
     if (policy.servantId) servants.add(policy.servantId);
-    if (policy.craftEssenceId) craftEssences.add(policy.craftEssenceId);
+    supportCraftEssences(policy).forEach(({ id }) => craftEssences.add(id));
   }
   return { servantIds: [...servants], craftEssenceIds: [...craftEssences] };
 }
@@ -60,8 +60,7 @@ export async function ensureAutoBattleAssets(
   const { server, value, emit, shouldStop } = options;
   const state = useAppStore.getState();
   const langKey = getInterfaceLangKey(state.language);
-  const text = (key: string) =>
-    state.resolveI18nText(`$auto_battle.assets.${key}`, langKey) || key;
+  const text = (key: string) => state.resolveI18nText(`$auto_battle.assets.${key}`, langKey) || key;
 
   if (!value) return 'ready';
   let servantIds: number[];

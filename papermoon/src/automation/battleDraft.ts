@@ -1,13 +1,14 @@
 import type { BattleAction, BattleCard, BattlePlan, Turn } from './battlePlan';
+export { formationBeforeAction } from './battlePlan';
 
-export type DraftActionType = 'servantSkill' | 'masterSkill' | 'orderChange' | 'targetEnemy';
+export type DraftActionType = 'servantSkill' | 'masterSkill' | 'targetEnemy';
 
 export function emptyTurn(): Turn {
   return {
     actions: [
       {
         type: 'attack',
-        cards: [{ type: 'command', colors: ['buster', 'arts', 'quick'] }],
+        cards: [{ type: 'np', onMissing: 'stop' }],
       },
     ],
   };
@@ -117,8 +118,6 @@ function defaultAction(type: DraftActionType): BattleAction {
       return { type, servant: 1, skill: 1 };
     case 'masterSkill':
       return { type, skill: 1 };
-    case 'orderChange':
-      return { type, front: 1, back: 4 };
     case 'targetEnemy':
       return { type, enemy: 1 };
   }

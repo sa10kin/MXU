@@ -440,8 +440,8 @@ export function TaskItem({ instanceId, task }: TaskItemProps) {
     // 更新 ref
     prevOptionValuesRef.current = currentOptionValues;
 
-    // 只有 pending 状态的任务才需要调用 overridePipeline
-    if (taskRunStatus !== 'pending') {
+    // 自动战斗的周回参数允许在运行中调整。
+    if (taskRunStatus !== 'pending' && !(isPaperMoonAutoBattle && taskRunStatus === 'running')) {
       return;
     }
 
@@ -1027,6 +1027,9 @@ export function TaskItem({ instanceId, task }: TaskItemProps) {
                   taskId={task.id}
                   value={task.optionValues[PAPERMOON_BATTLE_PLAN_OPTION]}
                   disabled={!canEditOptions || isIncompatible}
+                  loopDisabled={
+                    isIncompatible || (!canEditOptions && taskRunStatus !== 'running')
+                  }
                 />
               ) : hasOptions ? (
                 <OptionListRenderer

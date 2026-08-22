@@ -25,6 +25,8 @@ export default {
     newTab: '새 탭',
     closeTab: '탭 닫기',
     settings: '설정',
+    showRightPanel: '오른쪽 패널 표시',
+    hideRightPanel: '오른쪽 패널 숨기기',
     about: '정보',
     renameInstance: '인스턴스 이름 변경',
     instanceName: '인스턴스 이름',
