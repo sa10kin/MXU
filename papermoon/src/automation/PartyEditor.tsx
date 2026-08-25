@@ -1,14 +1,12 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
-import { Download, Image, Search, Users } from 'lucide-react';
+import { Search, Users } from 'lucide-react';
 
 import {
   CHINESE_ATLAS_SERVERS,
-  downloadCraftEssenceImage,
   ensureCraftEssences,
   getBasicServants,
   getCraftEssences,
   readCachedBasicServantFace,
-  readCachedCraftEssenceFace,
   type AtlasCraftEssenceEntry,
   type AtlasServer,
 } from '../atlas/atlasService';
@@ -21,6 +19,7 @@ import {
   resolveCraftEssence,
   type CraftEssenceOption,
 } from './craftEssenceSearch';
+import { CraftEssenceThumbnail } from './CraftEssenceThumbnail';
 import { setPartySupport, updatePartySlot } from './partyDraft';
 import {
   filterSupportServants,
@@ -360,12 +359,9 @@ function CraftEssenceSlotField({
   const [query, setQuery] = useState('');
   const [focused, setFocused] = useState(false);
   const [active, setActive] = useState(-1);
-  const [downloading, setDownloading] = useState(false);
   const [downloadError, setDownloadError] = useState(false);
-  const [imageVersion, setImageVersion] = useState(0);
   const listboxId = useId();
   const candidates = useMemo(() => filterCraftEssences(options, query), [options, query]);
-  const imageUrl = useCraftEssenceImage(scopeServer, selected, imageVersion);
 
   useEffect(() => {
     setQuery(selected ? craftEssenceLabel(selected) : '');
@@ -381,33 +377,14 @@ function CraftEssenceSlotField({
 
   return (
     <div className="space-y-2 border-t border-border pt-3">
-      <button
-        type="button"
-        disabled={disabled || !selected || downloading || Boolean(imageUrl)}
-        title={selected && !imageUrl ? text('party.ce_download') : undefined}
-        onClick={async () => {
-          if (!selected) return;
-          setDownloading(true);
-          setDownloadError(false);
-          try {
-            await downloadCraftEssenceImage(scopeServer, selected.collectionNo ?? selected.id ?? 0);
-            setImageVersion((current) => current + 1);
-          } catch {
-            setDownloadError(true);
-          } finally {
-            setDownloading(false);
-          }
-        }}
-        className="mx-auto flex h-10 w-16 items-center justify-center overflow-hidden rounded-md bg-bg-primary text-text-muted"
-      >
-        {imageUrl ? (
-          <img src={imageUrl} alt="" className="h-full w-full object-cover" draggable={false} />
-        ) : downloading ? (
-          <Download className="h-4 w-4 animate-pulse" />
-        ) : (
-          <Image className="h-5 w-5" />
-        )}
-      </button>
+      <CraftEssenceThumbnail
+        scopeServer={scopeServer}
+        craftEssence={selected}
+        disabled={disabled}
+        className="mx-auto h-10 w-16"
+        title={text('party.ce_download')}
+        onError={setDownloadError}
+      />
       <div className="relative">
         <input
           value={query}
@@ -524,30 +501,5 @@ function useCachedImage(
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
   }, [id, read]);
-  return url;
-}
-
-function useCraftEssenceImage(
-  server: AtlasServer,
-  craftEssence: AtlasCraftEssenceEntry | undefined,
-  version: number,
-): string | null {
-  const [url, setUrl] = useState<string | null>(null);
-  useEffect(() => {
-    let active = true;
-    let objectUrl: string | null = null;
-    setUrl(null);
-    if (craftEssence) {
-      void readCachedCraftEssenceFace(server, craftEssence).then((bytes) => {
-        if (!active || !bytes) return;
-        objectUrl = URL.createObjectURL(new Blob([bytes], { type: 'image/png' }));
-        setUrl(objectUrl);
-      });
-    }
-    return () => {
-      active = false;
-      if (objectUrl) URL.revokeObjectURL(objectUrl);
-    };
-  }, [craftEssence, server, version]);
   return url;
 }

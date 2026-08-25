@@ -18,6 +18,7 @@ import {
   withSupportCraftEssences,
   type SupportPolicy,
 } from './supportPolicy';
+import { CraftEssenceThumbnail } from './CraftEssenceThumbnail';
 
 export function CraftEssenceConditionEditor({
   scopeServer,
@@ -217,6 +218,12 @@ export function CraftEssenceConditionEditor({
             key={filter.id}
             className="flex items-center justify-between gap-3 rounded-xl border border-border bg-bg-primary px-3 py-2.5"
           >
+            <CraftEssenceThumbnail
+              scopeServer={scopeServer}
+              craftEssence={selected}
+              disabled={disabled}
+              title={text('support.ce_download')}
+            />
             <div className="min-w-0 flex-1">
               <div className="truncate text-sm text-text-primary">
                 {selected?.name ?? `#${filter.id}`}
