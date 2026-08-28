@@ -26,6 +26,10 @@ pub fn emit_callback_event<S: Into<String>>(app: &AppHandle, message: S, details
     let message = message.into();
     let details = details.into();
 
+    if !should_forward_callback(&message, &details) {
+        return;
+    }
+
     // 广播到所有 WebSocket 客户端
     if let Some(ws) = app.try_state::<Arc<WsBroadcast>>() {
         ws.send(WsEvent::MaaCallback {
@@ -38,6 +42,36 @@ pub fn emit_callback_event<S: Into<String>>(app: &AppHandle, message: S, details
     let event = MaaCallbackEvent { message, details };
     if let Err(e) = app.emit("maa-callback", event) {
         log::error!("Failed to emit maa-callback: {}", e);
+    }
+}
+
+fn should_forward_callback(message: &str, details: &str) -> bool {
+    if !message.starts_with("Node.") {
+        return true;
+    }
+
+    serde_json::from_str::<serde_json::Value>(details)
+        .ok()
+        .and_then(|value| value.get("focus").cloned())
+        .and_then(|focus| focus.get(message).cloned())
+        .is_some()
+}
+
+#[cfg(test)]
+mod callback_tests {
+    use super::should_forward_callback;
+
+    #[test]
+    fn forwards_lifecycle_and_only_focused_node_callbacks() {
+        assert!(should_forward_callback("Tasker.Task.Starting", "{}"));
+        assert!(!should_forward_callback(
+            "Node.Recognition.Failed",
+            r#"{"focus":null}"#
+        ));
+        assert!(should_forward_callback(
+            "Node.Action.Starting",
+            r#"{"focus":{"Node.Action.Starting":{"content":"stop"}}}"#
+        ));
     }
 }
 

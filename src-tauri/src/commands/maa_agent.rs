@@ -19,13 +19,15 @@ use maa_framework::controller::Controller;
 use maa_framework::resource::Resource;
 use maa_framework::tasker::Tasker;
 
-use super::types::{AgentConfig, MaaState, TaskConfig};
+use super::types::{AgentConfig, AgentProcess, MaaState, TaskConfig};
 use super::utils::{
     emit_callback_event, get_app_data_dir, get_logs_dir, handle_task_callback, normalize_path,
 };
 use regex::Regex;
 use std::sync::LazyLock;
 use std::time::{Duration, Instant};
+
+const MAX_AGENT_OUTPUT_BATCH_LINES: usize = 256;
 
 /// Agent 输出事件载荷
 #[derive(Clone, serde::Serialize)]
@@ -73,7 +75,12 @@ impl AgentOutputBatcher {
                 Some(existing) if existing != stream => state.has_mixed_streams = true,
                 _ => {}
             }
-            state.flush_deadline = Some(Instant::now() + Duration::from_millis(1));
+            if state.flush_deadline.is_none() {
+                state.flush_deadline = Some(Instant::now() + Duration::from_millis(1));
+            }
+            if state.lines.len() >= MAX_AGENT_OUTPUT_BATCH_LINES {
+                state.flush_deadline = Some(Instant::now());
+            }
 
             if state.flush_running {
                 false
@@ -196,6 +203,124 @@ fn strip_ansi_escapes(s: &str) -> String {
     ANSI_RE.replace_all(s, "").into_owned()
 }
 
+fn monitor_agent_exit(
+    app: tauri::AppHandle,
+    maa_state: Arc<MaaState>,
+    instance_id: String,
+    agent_index: usize,
+    pid: u32,
+    log_path: Arc<PathBuf>,
+    process: &AgentProcess,
+) {
+    let child = Arc::clone(&process.child);
+    let expected_exit = Arc::clone(&process.expected_exit);
+
+    thread::spawn(move || loop {
+        let status = match child.lock() {
+            Ok(mut child) => child.try_wait(),
+            Err(_) => return,
+        };
+
+        match status {
+            Ok(Some(status)) => {
+                let expected = expected_exit.load(std::sync::atomic::Ordering::SeqCst);
+                let timestamp = Local::now().format("%Y-%m-%d %H:%M:%S");
+                if let Ok(mut file) = OpenOptions::new()
+                    .create(true)
+                    .append(true)
+                    .open(&*log_path)
+                {
+                    let _ = writeln!(
+                        file,
+                        "{} [exit] pid={} status={} expected={}",
+                        timestamp, pid, status, expected
+                    );
+                }
+
+                let task_running = maa_state
+                    .instances
+                    .lock()
+                    .ok()
+                    .and_then(|instances| {
+                        instances
+                            .get(&instance_id)
+                            .and_then(|instance| instance.tasker.as_ref())
+                            .map(|tasker| tasker.running())
+                    })
+                    .unwrap_or(false);
+
+                if !expected && task_running {
+                    let screenshot = save_agent_exit_screenshot(&maa_state, &instance_id, pid);
+                    let message = match screenshot.as_ref() {
+                        Some(path) => format!(
+                            "Agent #{} (pid {}) exited unexpectedly with {}; screenshot: {}",
+                            agent_index,
+                            pid,
+                            status,
+                            path.display()
+                        ),
+                        None => format!(
+                            "Agent #{} (pid {}) exited unexpectedly with {}; screenshot unavailable",
+                            agent_index, pid, status
+                        ),
+                    };
+                    error!("{}", message);
+                    emit_agent_output(&app, &instance_id, "exit", &message);
+                    if let Err(error) = super::maa_core::stop_task_impl(&maa_state, &instance_id) {
+                        error!("Failed to stop task after Agent exit: {}", error);
+                    }
+                    super::utils::emit_state_changed(&app, &instance_id, "agent-exited");
+                }
+                return;
+            }
+            Ok(None) => thread::sleep(Duration::from_millis(250)),
+            Err(error) => {
+                error!(
+                    "Failed to monitor Agent #{} (pid {}): {}",
+                    agent_index, pid, error
+                );
+                return;
+            }
+        }
+    });
+}
+
+fn save_agent_exit_screenshot(
+    maa_state: &MaaState,
+    instance_id: &str,
+    pid: u32,
+) -> Option<PathBuf> {
+    let bytes = {
+        let instances = maa_state.instances.lock().ok()?;
+        let controller = instances.get(instance_id)?.controller.as_ref()?;
+        controller.cached_image().ok()?.to_vec()?
+    };
+    if bytes.is_empty() {
+        return None;
+    }
+
+    let dir = get_logs_dir();
+    std::fs::create_dir_all(&dir).ok()?;
+    let safe_instance: String = instance_id
+        .chars()
+        .map(|ch| {
+            if ch.is_ascii_alphanumeric() || ch == '-' || ch == '_' {
+                ch
+            } else {
+                '_'
+            }
+        })
+        .collect();
+    let path = dir.join(format!(
+        "agent-exit-{}-{}-{}.png",
+        safe_instance,
+        pid,
+        Local::now().format("%Y%m%d-%H%M%S")
+    ));
+    std::fs::write(&path, bytes).ok()?;
+    Some(path)
+}
+
 /// 判断给定 child_exec 是否是“裸命令名”（仅包含单个普通组件且不含路径分隔符）。
 ///
 /// 例如 `python` / `node` / `git` 返回 true，`./agent.py` / `subdir/tool` 返回 false。
@@ -266,6 +391,7 @@ fn resolve_child_exec_path(child_exec: &str, cwd: &str) -> PathBuf {
 /// 启动单个 Agent 子进程并完成连接
 async fn start_single_agent(
     app: tauri::AppHandle,
+    maa_state: Arc<MaaState>,
     agent: AgentConfig,
     agent_index: usize,
     instance_id: String,
@@ -275,7 +401,7 @@ async fn start_single_agent(
     controller: Controller,
     tasker: Tasker,
     pi_envs: Arc<HashMap<String, String>>,
-) -> Result<(AgentClient, std::process::Child), String> {
+) -> Result<(AgentClient, AgentProcess), String> {
     info!("[agent#{}] Starting agent: {:?}", agent_index, agent);
 
     // 将整个启动过程移入 spawn_blocking，避免阻塞 async runtime 线程
@@ -501,7 +627,17 @@ async fn start_single_agent(
             return Err(e.to_string());
         }
 
-        Ok((client, child))
+        let process = AgentProcess::new(child);
+        monitor_agent_exit(
+            app,
+            maa_state,
+            instance_id,
+            agent_index,
+            pid,
+            agent_log_path,
+            &process,
+        );
+        Ok((client, process))
     }).await.map_err(|e| e.to_string())?
 }
 
@@ -636,6 +772,7 @@ pub async fn start_tasks_impl(
 
                 match start_single_agent(
                     app_handle,
+                    Arc::clone(maa_state),
                     config.clone(),
                     idx,
                     inst_id,
@@ -659,12 +796,17 @@ pub async fn start_tasks_impl(
                         );
 
                         // 回滚：清理已启动的 agent
+                        for process in &new_children {
+                            process.mark_expected_exit();
+                        }
                         for client in &new_clients {
                             let _ = client.disconnect();
                         }
-                        for mut child in new_children {
-                            let _ = child.kill();
-                            let _ = child.wait();
+                        for process in new_children {
+                            if let Ok(mut child) = process.child.lock() {
+                                let _ = child.kill();
+                                let _ = child.wait();
+                            }
                         }
                         return Err(format!("Agent start failed: {}", e));
                     }
@@ -821,11 +963,14 @@ pub fn stop_agent_impl(maa_state: &Arc<MaaState>, instance_id: &str) -> Result<(
     );
 
     thread::spawn(move || {
+        for process in &children {
+            process.mark_expected_exit();
+        }
         for client in clients {
             let _ = client.disconnect();
         }
 
-        for (i, mut child) in children.into_iter().enumerate() {
+        for (i, process) in children.into_iter().enumerate() {
             debug!("Waiting for agent process #{} to exit...", i);
 
             let start = std::time::Instant::now();
@@ -833,7 +978,11 @@ pub fn stop_agent_impl(maa_state: &Arc<MaaState>, instance_id: &str) -> Result<(
             let mut exited = false;
 
             while start.elapsed() < timeout {
-                match child.try_wait() {
+                let status = match process.child.lock() {
+                    Ok(mut child) => child.try_wait(),
+                    Err(_) => break,
+                };
+                match status {
                     Ok(Some(_)) => {
                         exited = true;
                         break;
@@ -850,8 +999,10 @@ pub fn stop_agent_impl(maa_state: &Arc<MaaState>, instance_id: &str) -> Result<(
 
             if !exited {
                 warn!("Agent process #{} did not exit in time, killing it...", i);
-                let _ = child.kill();
-                let _ = child.wait();
+                if let Ok(mut child) = process.child.lock() {
+                    let _ = child.kill();
+                    let _ = child.wait();
+                }
             } else {
                 info!("Background: Agent #{} child process exited", i);
             }

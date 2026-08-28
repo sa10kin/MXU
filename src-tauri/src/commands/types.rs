@@ -5,7 +5,10 @@
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::path::PathBuf;
 use std::process::Child;
-use std::sync::Mutex;
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    Arc, Mutex,
+};
 use std::time::Instant;
 
 use serde::{Deserialize, Serialize};
@@ -14,6 +17,24 @@ use maa_framework::agent_client::AgentClient;
 use maa_framework::controller::Controller;
 use maa_framework::resource::Resource;
 use maa_framework::tasker::Tasker;
+
+pub struct AgentProcess {
+    pub child: Arc<Mutex<Child>>,
+    pub expected_exit: Arc<AtomicBool>,
+}
+
+impl AgentProcess {
+    pub fn new(child: Child) -> Self {
+        Self {
+            child: Arc::new(Mutex::new(child)),
+            expected_exit: Arc::new(AtomicBool::new(false)),
+        }
+    }
+
+    pub fn mark_expected_exit(&self) {
+        self.expected_exit.store(true, Ordering::SeqCst);
+    }
+}
 
 // ============================================================================
 // 数据类型定义
@@ -185,7 +206,7 @@ pub struct InstanceRuntime {
     pub controller_config: Option<ControllerConfig>,
     pub tasker: Option<Tasker>,
     pub agent_clients: Vec<AgentClient>,
-    pub agent_children: Vec<Child>,
+    pub agent_children: Vec<AgentProcess>,
     /// 当前运行的任务 ID 列表（用于刷新后恢复状态）
     pub task_ids: Vec<i64>,
     /// 是否正在停止任务（用于防重复 stop）
@@ -198,6 +219,10 @@ pub struct InstanceRuntime {
 
 impl Drop for InstanceRuntime {
     fn drop(&mut self) {
+        for process in &self.agent_children {
+            process.mark_expected_exit();
+        }
+
         // 断开并销毁所有 agent
         for client in &self.agent_clients {
             let _ = client.disconnect();
@@ -205,9 +230,11 @@ impl Drop for InstanceRuntime {
         self.agent_clients.clear();
 
         // 终止并回收所有 agent 子进程
-        for mut child in self.agent_children.drain(..) {
-            let _ = child.kill();
-            let _ = child.wait();
+        for process in self.agent_children.drain(..) {
+            if let Ok(mut child) = process.child.lock() {
+                let _ = child.kill();
+                let _ = child.wait();
+            }
         }
 
         if let Some(tasker) = self.tasker.take() {
@@ -310,17 +337,20 @@ impl MaaState {
     pub fn cleanup_all_agent_children(&self) {
         if let Ok(mut instances) = self.instances.lock() {
             for (id, instance) in instances.iter_mut() {
-                for mut child in instance.agent_children.drain(..) {
+                for process in instance.agent_children.drain(..) {
                     log::info!("Killing agent child process for instance: {}", id);
-                    if let Err(e) = child.kill() {
-                        log::warn!(
-                            "Failed to kill agent child process for instance {}: {:?}",
-                            id,
-                            e
-                        );
+                    process.mark_expected_exit();
+                    if let Ok(mut child) = process.child.lock() {
+                        if let Err(e) = child.kill() {
+                            log::warn!(
+                                "Failed to kill agent child process for instance {}: {:?}",
+                                id,
+                                e
+                            );
+                        }
+                        // 回收子进程，避免 *nix 上产生僵尸进程
+                        let _ = child.wait();
                     }
-                    // 回收子进程，避免 *nix 上产生僵尸进程
-                    let _ = child.wait();
                 }
             }
         }
