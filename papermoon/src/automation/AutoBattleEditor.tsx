@@ -70,6 +70,7 @@ const DEFAULT_VALUES = {
   allowOtherFruits: 'false',
   drainRemainingAp: 'false',
   adjustBattleSettings: 'false',
+  ignoreBondOverflow: 'false',
 };
 
 /** pipeline_type int 的输入落盘后是数字，数字 0 是 falsy，不能用 || 回退默认值 */
@@ -93,6 +94,10 @@ function inputValues(value: OptionValue | undefined): Record<string, string> {
     adjustBattleSettings: asDraftString(
       value.values.adjustBattleSettings,
       DEFAULT_VALUES.adjustBattleSettings,
+    ),
+    ignoreBondOverflow: asDraftString(
+      value.values.ignoreBondOverflow,
+      DEFAULT_VALUES.ignoreBondOverflow,
     ),
   };
 }
@@ -262,6 +267,7 @@ export function AutoBattleEditor({
   const allowOtherFruits = values.allowOtherFruits === 'true';
   const drainRemainingAp = values.drainRemainingAp === 'true';
   const adjustBattleSettings = values.adjustBattleSettings === 'true';
+  const ignoreBondOverflow = values.ignoreBondOverflow === 'true';
   const loggedProgress = latestBattleProgress(
     (instanceLogs[instanceId] ?? []).map(({ message }) => message),
     parsed.plan.name,
@@ -727,6 +733,23 @@ export function AutoBattleEditor({
               {text('field.adjust_battle_settings')}
               <small className="block text-xs text-text-muted">
                 {text('hint.adjust_battle_settings')}
+              </small>
+            </span>
+          </label>
+          <label className="flex items-start gap-2 text-sm text-text-secondary">
+            <input
+              type="checkbox"
+              checked={ignoreBondOverflow}
+              disabled={loopDisabled}
+              onChange={(event) =>
+                commitValues({ ignoreBondOverflow: String(event.target.checked) })
+              }
+              className="mt-0.5 h-4 w-4 accent-accent"
+            />
+            <span>
+              {text('field.ignore_bond_overflow')}
+              <small className="block text-xs text-text-muted">
+                {text('hint.ignore_bond_overflow')}
               </small>
             </span>
           </label>
