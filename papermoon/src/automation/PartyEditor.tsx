@@ -328,7 +328,9 @@ function ServantSlotField({
             candidates={candidates.map((option) => ({
               key: option.servant.id ?? 0,
               label: option.servant.name,
-              meta: `#${option.servant.collectionNo}`,
+              meta: option.servant.className
+                ? `${option.servant.className} · #${option.servant.collectionNo}`
+                : `#${option.servant.collectionNo}`,
             }))}
             onHover={setActive}
             onSelect={(index) => confirm(candidates[index])}
