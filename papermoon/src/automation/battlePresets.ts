@@ -1,3 +1,5 @@
+import { isTauri } from '@/utils/paths';
+
 import {
   emptyBattlePlan,
   parseBattlePlan,
@@ -17,17 +19,56 @@ export interface BattlePreset {
 
 export const BATTLE_PRESET_STORAGE_KEY = 'papermoon-battle-presets-v1';
 
-export function loadBattlePresets(): BattlePreset[] {
+function parsePresetList(raw: string | null): BattlePreset[] {
+  if (raw === null) return [];
   try {
-    const value = JSON.parse(localStorage.getItem(BATTLE_PRESET_STORAGE_KEY) ?? '[]') as unknown;
+    const value = JSON.parse(raw) as unknown;
     return Array.isArray(value) ? (value as BattlePreset[]) : [];
   } catch {
     return [];
   }
 }
 
-export function saveBattlePresets(presets: BattlePreset[]) {
-  localStorage.setItem(BATTLE_PRESET_STORAGE_KEY, JSON.stringify(presets));
+function loadLegacyPresets(): BattlePreset[] {
+  try {
+    return parsePresetList(localStorage.getItem(BATTLE_PRESET_STORAGE_KEY));
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * 读取队伍预设。
+ *
+ * 预设存在 PaperMoon 数据目录的 config/battle-presets.json 里，而不是 localStorage：
+ * macOS 上 WKWebView 的数据目录随 bundle identifier 分区，以 .app 启动和直接跑裸
+ * 二进制会看到两份不同的 localStorage。数据目录由 get_data_dir 决定，与启动方式无关。
+ *
+ * 文件还不存在时（首次升级）把 localStorage 里的旧数据迁过去；localStorage 保持原样
+ * 作为回退备份，不做删除。非 Tauri 环境（浏览器 WebUI）仍然只能用 localStorage。
+ */
+export async function loadBattlePresets(): Promise<BattlePreset[]> {
+  if (!isTauri()) return loadLegacyPresets();
+  try {
+    const { invoke } = await import('@tauri-apps/api/core');
+    const stored = await invoke<string | null>('read_battle_presets');
+    if (stored !== null) return parsePresetList(stored);
+    const legacy = loadLegacyPresets();
+    if (legacy.length > 0) await saveBattlePresets(legacy);
+    return legacy;
+  } catch {
+    return loadLegacyPresets();
+  }
+}
+
+export async function saveBattlePresets(presets: BattlePreset[]) {
+  const content = JSON.stringify(presets);
+  if (!isTauri()) {
+    localStorage.setItem(BATTLE_PRESET_STORAGE_KEY, content);
+    return;
+  }
+  const { invoke } = await import('@tauri-apps/api/core');
+  await invoke('write_battle_presets', { content });
 }
 
 export function parseBattlePreset(raw: string): BattlePreset | null {

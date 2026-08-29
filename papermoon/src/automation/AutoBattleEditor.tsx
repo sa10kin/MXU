@@ -161,7 +161,7 @@ export function AutoBattleEditor({
   } = useAppStore();
   const [tab, setTab] = useState<Tab>('basic');
   const [servantNames, setServantNames] = useState(new Map<number, string>());
-  const [presets, setPresets] = useState(loadBattlePresets);
+  const [presets, setPresets] = useState<BattlePreset[]>([]);
   const [presetName, setPresetName] = useState('');
   const [presetMessage, setPresetMessage] = useState('');
   const [showTeamChooser, setShowTeamChooser] = useState(false);
@@ -179,6 +179,17 @@ export function AutoBattleEditor({
   const scopeServer = atlasServerFromFgoClient(resourceName?.split('_').pop());
   const displayServer = langKey === 'zh_tw' ? 'TW' : 'CN';
   const text = (key: string) => resolveI18nText(`$auto_battle.editor.${key}`, langKey);
+
+  // 队伍预设存在数据目录里，读取是异步的：先渲染空列表，读完再补上。
+  useEffect(() => {
+    let cancelled = false;
+    void loadBattlePresets().then((stored) => {
+      if (!cancelled) setPresets(stored);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const parsed = useMemo(() => {
     try {
@@ -346,14 +357,19 @@ export function AutoBattleEditor({
     return true;
   };
 
-  const savePreset = (overwrite = false) => {
+  const savePreset = async (overwrite = false) => {
     const name = overwrite && baseline ? baseline.name : presetName.trim();
     if (!name || (!overwrite && presetNameTaken) || setupErrors.length > 0) return;
     const plan = { ...parsed.plan, name };
     const next = upsertBattlePreset(presets, name, plan, supportParsed.policy);
     const saved = next.find((preset) => preset.name === name) ?? null;
     if (!saved) return;
-    saveBattlePresets(next);
+    try {
+      await saveBattlePresets(next);
+    } catch {
+      setPresetMessage('save_failed');
+      return;
+    }
     setPresets(next);
     commitSetup(plan, supportParsed.policy, {
       teamName: name,
@@ -575,7 +591,11 @@ export function AutoBattleEditor({
         />
         {presetMessage && !['applied', 'invalid'].includes(presetMessage) && (
           <p
-            className={`mt-3 text-xs ${presetMessage === 'import_failed' ? 'text-warning' : 'text-success'}`}
+            className={`mt-3 text-xs ${
+              ['import_failed', 'save_failed'].includes(presetMessage)
+                ? 'text-warning'
+                : 'text-success'
+            }`}
           >
             {text(`preset.${presetMessage}`)}
           </p>
@@ -929,7 +949,7 @@ export function AutoBattleEditor({
         cancelText={text('preset.cancel')}
         onConfirm={() => {
           setShowSaveChangesConfirm(false);
-          savePreset(true);
+          void savePreset(true);
         }}
         onSecondaryConfirm={() => {
           setShowSaveChangesConfirm(false);
@@ -944,7 +964,7 @@ export function AutoBattleEditor({
         confirmText={text('preset.confirm_save')}
         cancelText={text('preset.cancel')}
         confirmDisabled={!presetName.trim() || presetNameTaken || setupErrors.length > 0}
-        onConfirm={() => savePreset(false)}
+        onConfirm={() => void savePreset(false)}
         onCancel={() => {
           setSaveMode(null);
           setPresetName('');

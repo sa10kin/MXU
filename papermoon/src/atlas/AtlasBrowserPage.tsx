@@ -66,7 +66,7 @@ export function AtlasBrowserPage({ onClose }: { onClose: () => void }) {
   const [servants, setServants] = useState<AtlasBasicServantEntry[]>([]);
   const [craftEssences, setCraftEssences] = useState<AtlasCraftEssenceEntry[]>([]);
   const [aliases, setAliases] = useState<AtlasAliases>(loadAtlasAliases);
-  const [presets, setPresets] = useState<BattlePreset[]>(loadBattlePresets);
+  const [presets, setPresets] = useState<BattlePreset[]>([]);
   const [query, setQuery] = useState('');
   const [className, setClassName] = useState('');
   const [loading, setLoading] = useState(true);
@@ -76,6 +76,17 @@ export function AtlasBrowserPage({ onClose }: { onClose: () => void }) {
   const [error, setError] = useState('');
   const [selectedPreset, setSelectedPreset] = useState<BattlePreset | null>(null);
   const [deletePreset, setDeletePreset] = useState<BattlePreset | null>(null);
+
+  // 队伍预设存在数据目录里，读取是异步的：先渲染空列表，读完再补上。
+  useEffect(() => {
+    let active = true;
+    void loadBattlePresets().then((stored) => {
+      if (active) setPresets(stored);
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -365,8 +376,7 @@ export function AtlasBrowserPage({ onClose }: { onClose: () => void }) {
         onConfirm={() => {
           if (!deletePreset) return;
           const next = presets.filter((preset) => preset.id !== deletePreset.id);
-          saveBattlePresets(next);
-          setPresets(next);
+          void saveBattlePresets(next).then(() => setPresets(next));
           if (selectedPreset?.id === deletePreset.id) setSelectedPreset(null);
           setDeletePreset(null);
         }}

@@ -282,6 +282,8 @@ pub fn run() {
             commands::atlas_download::download_atlas_servant_names,
             commands::atlas_download::download_atlas_servant_recognition_index,
             commands::atlas_download::record_atlas_servant_recognition_catalog,
+            commands::battle_presets::read_battle_presets,
+            commands::battle_presets::write_battle_presets,
             // 系统相关命令
             commands::system::is_elevated,
             commands::system::is_autostart,

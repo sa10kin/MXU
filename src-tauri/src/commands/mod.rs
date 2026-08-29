@@ -22,6 +22,8 @@ pub mod app_config;
 pub mod atlas_download;
 #[path = "../../../papermoon/src-tauri/atlas_manifest.rs"]
 pub mod atlas_manifest;
+#[path = "../../../papermoon/src-tauri/battle_presets.rs"]
+pub mod battle_presets;
 pub mod download;
 pub mod file_ops;
 pub mod maa_agent;
