@@ -69,6 +69,7 @@ const DEFAULT_VALUES = {
   recoveryItem: 'none',
   allowOtherFruits: 'false',
   drainRemainingAp: 'false',
+  fallbackUseNP: 'false',
   adjustBattleSettings: 'false',
   ignoreBondOverflow: 'false',
 };
@@ -91,6 +92,7 @@ function inputValues(value: OptionValue | undefined): Record<string, string> {
     recoveryItem: value.values.recoveryItem || DEFAULT_VALUES.recoveryItem,
     allowOtherFruits: asDraftString(value.values.allowOtherFruits, DEFAULT_VALUES.allowOtherFruits),
     drainRemainingAp: asDraftString(value.values.drainRemainingAp, DEFAULT_VALUES.drainRemainingAp),
+    fallbackUseNP: asDraftString(value.values.fallbackUseNP, DEFAULT_VALUES.fallbackUseNP),
     adjustBattleSettings: asDraftString(
       value.values.adjustBattleSettings,
       DEFAULT_VALUES.adjustBattleSettings,
@@ -266,6 +268,7 @@ export function AutoBattleEditor({
     values.teamName || baseline?.name || parsed.plan.name || text('preset.unsaved_name');
   const allowOtherFruits = values.allowOtherFruits === 'true';
   const drainRemainingAp = values.drainRemainingAp === 'true';
+  const fallbackUseNP = values.fallbackUseNP === 'true';
   const adjustBattleSettings = values.adjustBattleSettings === 'true';
   const ignoreBondOverflow = values.ignoreBondOverflow === 'true';
   const loggedProgress = latestBattleProgress(
@@ -696,6 +699,22 @@ export function AutoBattleEditor({
               }
               className="w-full rounded-lg border border-border bg-bg-primary px-3 py-2 text-text-primary"
             />
+            <span className="block text-xs text-text-muted">{text('hint.max_turns')}</span>
+          </label>
+          <label className="flex items-start gap-2 text-sm text-text-secondary">
+            <input
+              type="checkbox"
+              checked={fallbackUseNP}
+              disabled={disabled}
+              onChange={(event) => commitValues({ fallbackUseNP: String(event.target.checked) })}
+              className="mt-0.5 h-4 w-4 accent-accent"
+            />
+            <span>
+              {text('field.fallback_use_np')}
+              <small className="block text-xs text-text-muted">
+                {text('hint.fallback_use_np')}
+              </small>
+            </span>
           </label>
           <label className="block space-y-1 text-sm text-text-secondary">
             <span>{text('field.repeat_count')}</span>
