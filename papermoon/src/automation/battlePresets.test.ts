@@ -9,6 +9,7 @@ import {
   upsertBattlePreset,
   type BattlePreset,
 } from './battlePresets';
+import { emptyBondPolicy } from './bondPolicy';
 import { emptySupportPolicy } from './supportPolicy';
 
 describe('battle presets', () => {
@@ -22,13 +23,17 @@ describe('battle presets', () => {
     };
     const plan = { ...emptyBattlePlan(), name: 'new' };
     const policy = { ...emptySupportPolicy(), servantId: 284 };
-    const result = upsertBattlePreset([existing], '3T', plan, policy);
+    const bond = { ...emptyBondPolicy(), slots: [{ slot: 1, onBondMax: 'stop' as const }] };
+    const result = upsertBattlePreset([existing], '3T', plan, policy, bond);
     expect(result).toHaveLength(1);
     expect(result[0].id).toBe('preset-1');
     expect(result[0].plan).toBe(plan);
     expect(result[0].supportPolicy).toBe(policy);
-    expect(battlePresetMatches(result[0], plan, policy)).toBe(true);
-    expect(battlePresetMatches(result[0], plan, emptySupportPolicy())).toBe(false);
+    expect(result[0].bondPolicy).toBe(bond);
+    expect(battlePresetMatches(result[0], plan, policy, bond)).toBe(true);
+    expect(battlePresetMatches(result[0], plan, emptySupportPolicy(), bond)).toBe(false);
+    // 牵绊配置也是队伍的一部分：只有它变了同样算「已修改」。
+    expect(battlePresetMatches(result[0], plan, policy, emptyBondPolicy())).toBe(false);
   });
 
   it('restores a loaded setup or returns a clean setup without one', () => {
@@ -39,14 +44,27 @@ describe('battle presets', () => {
       plan: { ...emptyBattlePlan(), name: 'loaded', party: [{ slot: 1, servantId: 1 }] },
       supportPolicy: { ...emptySupportPolicy(), servantId: 284 },
     };
+    // 旧预设没有 bondPolicy，读回来按「不处理」补齐，语义与未配置一致。
     expect(battlePresetSetup(preset)).toEqual({
       plan: preset.plan,
       supportPolicy: preset.supportPolicy,
+      bondPolicy: emptyBondPolicy(),
     });
     expect(battlePresetSetup(null)).toEqual({
       plan: emptyBattlePlan(),
       supportPolicy: emptySupportPolicy(),
+      bondPolicy: emptyBondPolicy(),
     });
-    expect(parseBattlePreset(serializeBattlePreset(preset))).toEqual(preset);
+    expect(parseBattlePreset(serializeBattlePreset(preset))).toEqual({
+      ...preset,
+      bondPolicy: emptyBondPolicy(),
+    });
+
+    const withBond: BattlePreset = {
+      ...preset,
+      bondPolicy: { ...emptyBondPolicy(), slots: [{ slot: 1, onBondMax: 'stop' }] },
+    };
+    expect(parseBattlePreset(serializeBattlePreset(withBond))).toEqual(withBond);
+    expect(battlePresetSetup(withBond).bondPolicy).toEqual(withBond.bondPolicy);
   });
 });

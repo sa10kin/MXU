@@ -33,6 +33,14 @@ import {
 import { latestBattleProgress, type RecoveryItem } from './loopPolicy';
 import { describeAutoBattleErrors } from './autoBattleStatus';
 import {
+  emptyBondPolicy,
+  parseBondPolicy,
+  serializeBondPolicy,
+  validateBondPolicy,
+  withBondPolicyForParty,
+  type BondPolicy,
+} from './bondPolicy';
+import {
   battlePresetMatches,
   battlePresetSetup,
   loadBattlePresets,
@@ -72,6 +80,7 @@ const DEFAULT_VALUES = {
   fallbackUseNP: 'false',
   adjustBattleSettings: 'false',
   ignoreBondOverflow: 'false',
+  bondPolicy: serializeBondPolicy(emptyBondPolicy()),
 };
 
 /** pipeline_type int 的输入落盘后是数字，数字 0 是 falsy，不能用 || 回退默认值 */
@@ -101,6 +110,7 @@ function inputValues(value: OptionValue | undefined): Record<string, string> {
       value.values.ignoreBondOverflow,
       DEFAULT_VALUES.ignoreBondOverflow,
     ),
+    bondPolicy: value.values.bondPolicy || DEFAULT_VALUES.bondPolicy,
   };
 }
 
@@ -122,6 +132,7 @@ export function validateAutoBattleOption(value: OptionValue | undefined): string
   try {
     const plan = parseBattlePlan(values.json);
     const policy = parseSupportPolicy(values.support);
+    const bond = parseBondPolicy(values.bondPolicy);
     const repeatCount = Number(values.repeatCount);
     return [
       ...validateBattlePlan(plan),
@@ -131,6 +142,7 @@ export function validateAutoBattleOption(value: OptionValue | undefined): string
       ...supportErrorsForParty(plan.party, validateSupportPolicy(policy)).map(
         (error) => `support.${error}`,
       ),
+      ...validateBondPolicy(bond, plan.party).map((error) => `bond.${error}`),
     ];
   } catch {
     return ['json'];
@@ -211,6 +223,13 @@ export function AutoBattleEditor({
       return { policy: emptySupportPolicy(), errors: ['json'] };
     }
   }, [values.support]);
+  const bondParsed = useMemo(() => {
+    try {
+      return parseBondPolicy(values.bondPolicy);
+    } catch {
+      return emptyBondPolicy();
+    }
+  }, [values.bondPolicy]);
   const baseline = useMemo(() => {
     try {
       return parseBattlePreset(values.teamBaseline);
@@ -267,13 +286,14 @@ export function AutoBattleEditor({
   ];
   const readableErrors = describeAutoBattleErrors(errors, parsed.plan, text);
   const presetModified = baseline
-    ? !battlePresetMatches(baseline, parsed.plan, supportParsed.policy)
+    ? !battlePresetMatches(baseline, parsed.plan, supportParsed.policy, bondParsed)
     : false;
   const emptySetup = battlePresetSetup(null);
   const hasCurrentSetup =
     serializeBattlePlan(parsed.plan) !== serializeBattlePlan(emptySetup.plan) ||
     serializeSupportPolicy(supportParsed.policy) !==
-      serializeSupportPolicy(emptySetup.supportPolicy);
+      serializeSupportPolicy(emptySetup.supportPolicy) ||
+    serializeBondPolicy(bondParsed) !== serializeBondPolicy(emptySetup.bondPolicy);
   const presetNameTaken = presets.some(({ name }) => name === presetName.trim());
   const teamName =
     values.teamName || baseline?.name || parsed.plan.name || text('preset.unsaved_name');
@@ -309,21 +329,30 @@ export function AutoBattleEditor({
       type: 'input',
       values: { ...values, ...next },
     });
-  const commitPlan = (plan: BattlePlan) =>
+  // 队伍变更可能让牵绊规则失效（勾选助战、清空从者）：一起收敛，别留下启动时
+  // 才被 Agent 拒绝的配置。
+  const commitPlan = (plan: BattlePlan) => {
+    const bond = withBondPolicyForParty(bondParsed, plan.party);
     commitValues({
       json: serializeBattlePlan({ ...plan, name: values.teamName || plan.name }),
       teamSource: values.teamSource || 'new',
+      ...(bond === bondParsed ? {} : { bondPolicy: serializeBondPolicy(bond) }),
     });
+  };
+  const commitBond = (policy: BondPolicy) =>
+    commitValues({ bondPolicy: serializeBondPolicy(policy) });
   const commitSupport = (policy: SupportPolicy) =>
     commitValues({ support: serializeSupportPolicy(policy) });
   const commitSetup = (
     plan: BattlePlan,
     policy: SupportPolicy,
+    bond: BondPolicy,
     metadata: Record<string, string> = {},
   ) =>
     commitValues({
       json: serializeBattlePlan(plan),
       support: serializeSupportPolicy(policy),
+      bondPolicy: serializeBondPolicy(bond),
       ...metadata,
     });
 
@@ -346,7 +375,7 @@ export function AutoBattleEditor({
     }
     const snapshot = { ...namedPreset, supportPolicy: policy };
     const setup = battlePresetSetup(snapshot);
-    commitSetup(setup.plan, setup.supportPolicy, {
+    commitSetup(setup.plan, setup.supportPolicy, setup.bondPolicy, {
       teamName: snapshot.name,
       teamSource: source,
       teamBaseline: serializeBattlePreset(snapshot),
@@ -361,7 +390,7 @@ export function AutoBattleEditor({
     const name = overwrite && baseline ? baseline.name : presetName.trim();
     if (!name || (!overwrite && presetNameTaken) || setupErrors.length > 0) return;
     const plan = { ...parsed.plan, name };
-    const next = upsertBattlePreset(presets, name, plan, supportParsed.policy);
+    const next = upsertBattlePreset(presets, name, plan, supportParsed.policy, bondParsed);
     const saved = next.find((preset) => preset.name === name) ?? null;
     if (!saved) return;
     try {
@@ -371,7 +400,7 @@ export function AutoBattleEditor({
       return;
     }
     setPresets(next);
-    commitSetup(plan, supportParsed.policy, {
+    commitSetup(plan, supportParsed.policy, bondParsed, {
       teamName: name,
       teamSource: 'preset',
       teamBaseline: serializeBattlePreset(saved),
@@ -383,7 +412,7 @@ export function AutoBattleEditor({
 
   const clearCurrent = () => {
     const setup = battlePresetSetup(null);
-    commitSetup(setup.plan, setup.supportPolicy, {
+    commitSetup(setup.plan, setup.supportPolicy, setup.bondPolicy, {
       teamName: '',
       teamSource: '',
       teamBaseline: '',
@@ -404,18 +433,23 @@ export function AutoBattleEditor({
         name?: unknown;
         plan?: unknown;
         supportPolicy?: unknown;
+        bondPolicy?: unknown;
       };
       if (!value.plan) throw new Error('missing plan');
       const plan = parseBattlePlan(JSON.stringify(value.plan));
       const policy = value.supportPolicy
         ? parseSupportPolicy(JSON.stringify(value.supportPolicy))
         : emptySupportPolicy();
+      const bond = value.bondPolicy
+        ? parseBondPolicy(JSON.stringify(value.bondPolicy))
+        : emptyBondPolicy();
       const imported: BattlePreset = {
         id: '',
         name: typeof value.name === 'string' ? value.name : plan.name,
         updatedAt: '',
         plan,
         supportPolicy: policy,
+        bondPolicy: bond,
       };
       if (applyPreset(imported, 'import')) {
         setPresetMessage('imported');
@@ -430,7 +464,7 @@ export function AutoBattleEditor({
   const startNewTeam = () => {
     if (hasCurrentSetup && !window.confirm(text('preset.replace_confirm'))) return;
     const setup = battlePresetSetup(null);
-    commitSetup(setup.plan, setup.supportPolicy, {
+    commitSetup(setup.plan, setup.supportPolicy, setup.bondPolicy, {
       teamName: '',
       teamSource: 'new',
       teamBaseline: '',
@@ -881,9 +915,11 @@ export function AutoBattleEditor({
           displayServer={displayServer}
           plan={parsed.plan}
           supportPolicy={supportParsed.policy}
+          bondPolicy={bondParsed}
           disabled={disabled}
           text={text}
           onChange={commitPlan}
+          onBondPolicyChange={commitBond}
         />
       ) : (
         <BattleEditor

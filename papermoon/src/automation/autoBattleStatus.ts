@@ -17,6 +17,7 @@ export function describeAutoBattleErrors(
           return text('status.error.max_turns');
         if (error === 'loop.repeatCount') return text('status.error.repeat_count');
         if (error.startsWith('support.')) return text('status.error.support');
+        if (error.startsWith('bond.')) return text('status.error.bond');
         const waveTurns = error.match(/^waves\[(\d+)]\.turns$/);
         if (waveTurns) {
           return text('status.error.turns').replace('{wave}', String(Number(waveTurns[1]) + 1));

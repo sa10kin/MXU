@@ -10,6 +10,7 @@ import {
   type AtlasServer,
 } from '../atlas/atlasService';
 import type { BattlePlan, PartySlot } from './battlePlan';
+import { bondRule, withBondRule, type BondOnMax, type BondPolicy } from './bondPolicy';
 import { supportCraftEssences, type SupportPolicy } from './supportPolicy';
 import {
   craftEssenceLabel,
@@ -33,17 +34,21 @@ export function PartyEditor({
   displayServer,
   plan,
   supportPolicy,
+  bondPolicy,
   disabled,
   text,
   onChange,
+  onBondPolicyChange,
 }: {
   scopeServer: AtlasServer;
   displayServer: AtlasServer;
   plan: BattlePlan;
   supportPolicy: SupportPolicy;
+  bondPolicy: BondPolicy;
   disabled: boolean;
   text: (key: string) => string;
   onChange: (plan: BattlePlan) => void;
+  onBondPolicyChange: (policy: BondPolicy) => void;
 }) {
   const [servants, setServants] = useState<SupportServantOption[]>([]);
   const [craftEssences, setCraftEssences] = useState<CraftEssenceOption[]>([]);
@@ -137,6 +142,10 @@ export function PartyEditor({
                 slot={slot}
                 member={plan.party.find((item) => item.slot === slot)}
                 supportPolicy={supportPolicy}
+                bondOnMax={bondRule(bondPolicy, slot)?.onBondMax ?? ''}
+                onBondOnMaxChange={(onBondMax) =>
+                  onBondPolicyChange(withBondRule(bondPolicy, slot, onBondMax))
+                }
                 servants={servants}
                 craftEssences={craftEssences}
                 disabled={disabled || catalogMissing}
@@ -158,6 +167,7 @@ function PartySlotCard({
   slot,
   member,
   supportPolicy,
+  bondOnMax,
   servants,
   craftEssences,
   disabled,
@@ -165,11 +175,13 @@ function PartySlotCard({
   loadCraftEssences,
   onChange,
   onSupportChange,
+  onBondOnMaxChange,
 }: {
   scopeServer: AtlasServer;
   slot: number;
   member?: PartySlot;
   supportPolicy: SupportPolicy;
+  bondOnMax: BondOnMax | '';
   servants: SupportServantOption[];
   craftEssences: CraftEssenceOption[];
   disabled: boolean;
@@ -177,6 +189,7 @@ function PartySlotCard({
   loadCraftEssences: () => Promise<void>;
   onChange: (patch: Partial<PartySlot> | null) => void;
   onSupportChange: (support: boolean) => void;
+  onBondOnMaxChange: (onBondMax: BondOnMax | '') => void;
 }) {
   const selectedServant = servants.find(
     ({ servant }) => servant.id === (member?.support ? supportPolicy.servantId : member?.servantId),
@@ -245,6 +258,28 @@ function PartySlotCard({
           loadOptions={loadCraftEssences}
           onSelect={(craftEssenceId) => onChange({ craftEssenceId: craftEssenceId || undefined })}
         />
+      )}
+
+      {/* 助战不涨牵绊、结算页也不列出助战，助战槽不提供该设置。 */}
+      {!member?.support && (
+        <label className="block space-y-1 border-t border-border pt-3">
+          <span className="text-[11px] text-text-muted">{text('party.bond_on_max')}</span>
+          <select
+            value={bondOnMax}
+            disabled={disabled || !member?.servantId}
+            onChange={(event) => onBondOnMaxChange(event.target.value as BondOnMax | '')}
+            className="w-full rounded-lg border border-border bg-bg-primary px-2 py-1.5 text-xs text-text-primary disabled:opacity-50"
+          >
+            <option value="">{text('party.bond_none')}</option>
+            <option value="stop">{text('party.bond_stop')}</option>
+            <option value="dreamFire" disabled>
+              {text('party.bond_dream_fire')}
+            </option>
+            <option value="swapServant" disabled>
+              {text('party.bond_swap')}
+            </option>
+          </select>
+        </label>
       )}
     </article>
   );

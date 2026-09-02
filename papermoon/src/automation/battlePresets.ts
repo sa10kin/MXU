@@ -6,6 +6,8 @@ import {
   serializeBattlePlan,
   type BattlePlan,
 } from './battlePlan';
+import type { BondPolicy } from './bondPolicy';
+import { emptyBondPolicy, parseBondPolicy, serializeBondPolicy } from './bondPolicy';
 import type { SupportPolicy } from './supportPolicy';
 import { emptySupportPolicy, parseSupportPolicy, serializeSupportPolicy } from './supportPolicy';
 
@@ -15,6 +17,7 @@ export interface BattlePreset {
   updatedAt: string;
   plan: BattlePlan;
   supportPolicy?: SupportPolicy;
+  bondPolicy?: BondPolicy;
 }
 
 export const BATTLE_PRESET_STORAGE_KEY = 'papermoon-battle-presets-v1';
@@ -83,6 +86,10 @@ export function parseBattlePreset(raw: string): BattlePreset | null {
     supportPolicy: value.supportPolicy
       ? parseSupportPolicy(JSON.stringify(value.supportPolicy))
       : emptySupportPolicy(),
+    // 旧预设没有牵绊配置，按「不处理」读入即可，语义与未配置一致。
+    bondPolicy: value.bondPolicy
+      ? parseBondPolicy(JSON.stringify(value.bondPolicy))
+      : emptyBondPolicy(),
   };
 }
 
@@ -95,6 +102,7 @@ export function upsertBattlePreset(
   name: string,
   plan: BattlePlan,
   supportPolicy: SupportPolicy,
+  bondPolicy: BondPolicy,
 ): BattlePreset[] {
   const existing = presets.find((preset) => preset.name === name);
   const preset = {
@@ -103,6 +111,7 @@ export function upsertBattlePreset(
     updatedAt: new Date().toISOString(),
     plan,
     supportPolicy,
+    bondPolicy,
   };
   return existing
     ? presets.map((current) => (current.id === existing.id ? preset : current))
@@ -113,17 +122,20 @@ export function battlePresetMatches(
   preset: BattlePreset,
   plan: BattlePlan,
   supportPolicy: SupportPolicy,
+  bondPolicy: BondPolicy,
 ): boolean {
   return (
     serializeBattlePlan(preset.plan) === serializeBattlePlan(plan) &&
     serializeSupportPolicy(preset.supportPolicy ?? emptySupportPolicy()) ===
-      serializeSupportPolicy(supportPolicy)
+      serializeSupportPolicy(supportPolicy) &&
+    serializeBondPolicy(preset.bondPolicy ?? emptyBondPolicy()) === serializeBondPolicy(bondPolicy)
   );
 }
 
 export function battlePresetSetup(preset: BattlePreset | null): {
   plan: BattlePlan;
   supportPolicy: SupportPolicy;
+  bondPolicy: BondPolicy;
 } {
   return preset
     ? {
@@ -131,6 +143,11 @@ export function battlePresetSetup(preset: BattlePreset | null): {
         supportPolicy: parseSupportPolicy(
           serializeSupportPolicy(preset.supportPolicy ?? emptySupportPolicy()),
         ),
+        bondPolicy: parseBondPolicy(serializeBondPolicy(preset.bondPolicy ?? emptyBondPolicy())),
       }
-    : { plan: emptyBattlePlan(), supportPolicy: emptySupportPolicy() };
+    : {
+        plan: emptyBattlePlan(),
+        supportPolicy: emptySupportPolicy(),
+        bondPolicy: emptyBondPolicy(),
+      };
 }
