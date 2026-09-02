@@ -5,7 +5,6 @@ import {
   CHINESE_ATLAS_SERVERS,
   ensureCraftEssences,
   getBasicServants,
-  getCraftEssences,
   readCachedBasicServantFace,
   type AtlasCraftEssenceEntry,
   type AtlasServer,
@@ -72,15 +71,19 @@ export function PartyEditor({
     });
     void Promise.all(
       CHINESE_ATLAS_SERVERS.map(
-        async (server) => [server, await getCraftEssences(server)] as const,
+        async (server) => [server, await ensureCraftEssences(server)] as const,
       ),
-    ).then((entries) => {
-      if (active) {
-        setCraftEssences(
-          mergeCraftEssenceOptions(Object.fromEntries(entries), scopeServer, displayServer),
-        );
-      }
-    });
+    )
+      .then((entries) => {
+        if (active) {
+          setCraftEssences(
+            mergeCraftEssenceOptions(Object.fromEntries(entries), scopeServer, displayServer),
+          );
+        }
+      })
+      .catch(() => {
+        if (active) setCraftEssenceError(true);
+      });
     return () => {
       active = false;
     };

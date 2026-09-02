@@ -132,12 +132,20 @@ export default {
     craftEssences: 'Craft Essences',
     presets: 'Party Presets',
     searchServants: 'Search name, collection number, or alias',
-    searchCraftEssences: 'Search name, collection number, or alias',
+    searchCraftEssences: 'Search name, collection number, alias, or #Atlas ID',
+    atlasIdDownloadHint:
+      'Enter a full #Atlas ID (for example #9408800) and press Enter to download.',
+    atlasIdDownloading: 'Downloading the specified Atlas craft essence…',
+    atlasIdNotFound: 'Craft essence #{{id}} is not in the Atlas index.',
+    atlasIdDownloadSuccess:
+      'Craft essence #{{id}} downloaded: {{downloaded}} new, {{skipped}} already cached.',
+    atlasIdDownloadFailed: 'Craft essence #{{id}} download failed: {{reason}}',
     allClasses: 'All classes',
     aliasPlaceholder: 'Aliases, separated by commas',
     servantCatalogMissing: 'No servant data. Update basic data in Settings → Atlas first.',
     craftEssenceCatalogMissing: 'Craft essence data has not been loaded for this server.',
-    noCachedCraftEssences: 'No craft essences are cached. Search, then click a placeholder to cache one.',
+    noCachedCraftEssences:
+      'No craft essences are cached. Search, then click a placeholder to cache one.',
     noMatches: 'No catalog entries match your search.',
     loadCraftEssences: 'Load craft essence data',
     downloadImage: 'Download this craft essence image',

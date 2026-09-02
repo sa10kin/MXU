@@ -9,6 +9,7 @@ import { isTauri } from '@/utils/paths';
 import {
   ATLAS_SERVERS,
   cancelAtlasImageDownload,
+  downloadAtlasDataset,
   downloadBasicServantData,
   downloadAllServantRecognitionAssets,
   getAtlasCatalogDir,
@@ -89,7 +90,11 @@ export function AtlasSettingsSection() {
     setBasicUpdating(true);
     setError(null);
     try {
-      setStatus(await downloadBasicServantData(server));
+      const [nextStatus] = await Promise.all([
+        downloadBasicServantData(server),
+        downloadAtlasDataset(server, 'craftEssences'),
+      ]);
+      setStatus(nextStatus);
       setRecognitionStatus(await getServantRecognitionStatus(server));
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : String(reason));

@@ -129,7 +129,7 @@ export default {
     server: '図鑑サーバー',
     basicServants: 'サーヴァント基本データ（{{server}}）',
     basicServantsHint:
-      'サーヴァント名・基本情報・顔アイコン・認識素材インデックスを取得します。戦闘認識画像と概念礼装データはダウンロードしません。',
+      'サーヴァント名・基本情報・顔アイコン・認識素材インデックス・概念礼装インデックスを取得します。戦闘認識画像と概念礼装画像は取得しません。',
     status: '状態',
     loading: 'キャッシュを読み込み中',
     available: '{{count}} 騎のサーヴァントをキャッシュ済み',
@@ -176,12 +176,20 @@ export default {
     craftEssences: '概念礼装図鑑',
     presets: '編成プリセット',
     searchServants: '名前、図鑑番号、別名で検索',
-    searchCraftEssences: '名前、図鑑番号、別名で検索',
+    searchCraftEssences: '名前、図鑑番号、別名、#Atlas番号で検索',
+    atlasIdDownloadHint:
+      '完全な #Atlas番号（例: #9408800）を入力し、Enterで概念礼装画像を取得します。',
+    atlasIdDownloading: '指定したAtlas概念礼装を取得しています……',
+    atlasIdNotFound: 'Atlasインデックスに概念礼装 #{{id}} がありません。',
+    atlasIdDownloadSuccess:
+      '概念礼装 #{{id}} の取得に成功しました：新規 {{downloaded}}、既存 {{skipped}}。',
+    atlasIdDownloadFailed: '概念礼装 #{{id}} の取得に失敗しました：{{reason}}',
     allClasses: 'すべてのクラス',
     aliasPlaceholder: '別名（半角カンマ区切り）',
     servantCatalogMissing: '基礎データがありません。設定 → Atlas で更新してください。',
     craftEssenceCatalogMissing: 'このサーバーの概念礼装データは未取得です。',
-    noCachedCraftEssences: 'キャッシュ済みの概念礼装はありません。検索して画像をクリックすると取得できます。',
+    noCachedCraftEssences:
+      'キャッシュ済みの概念礼装はありません。検索して画像をクリックすると取得できます。',
     noMatches: '一致する図鑑データはありません。',
     loadCraftEssences: '概念礼装データを取得',
     downloadImage: '概念礼装画像をダウンロード',
@@ -307,8 +315,10 @@ export default {
       windowNotFound: 'ウィンドウが見つかりません: {{name}}',
       noSavedDevice: '保存されたデバイス設定がありません',
       noDeviceFound: 'デバイスが見つかりませんでした',
-      savedDeviceNotFound: '保存済みデバイス {{name}} が見つかりません。デバイスの起動を確認して再試行してください',
-      savedWindowNotFound: '保存済みウィンドウ {{name}} が見つかりません。ウィンドウが開いているか確認して再試行してください',
+      savedDeviceNotFound:
+        '保存済みデバイス {{name}} が見つかりません。デバイスの起動を確認して再試行してください',
+      savedWindowNotFound:
+        '保存済みウィンドウ {{name}} が見つかりません。ウィンドウが開いているか確認して再試行してください',
       noWindowFound: 'ウィンドウが見つかりませんでした',
       connectFailed: '自動接続に失敗しました',
       retryConnect: '接続失敗、リトライ {{attempt}}...',

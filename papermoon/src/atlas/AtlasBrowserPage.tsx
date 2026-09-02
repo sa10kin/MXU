@@ -15,6 +15,7 @@ import { useTranslation } from 'react-i18next';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import {
   ATLAS_SERVERS,
+  downloadAtlasDataset,
   downloadCraftEssenceImage,
   ensureCraftEssences,
   getBasicServants,
@@ -74,6 +75,8 @@ export function AtlasBrowserPage({ onClose }: { onClose: () => void }) {
   const [cacheScanning, setCacheScanning] = useState(false);
   const [cachedCraftEssenceIds, setCachedCraftEssenceIds] = useState<Set<number>>(new Set());
   const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
+  const [directDownloading, setDirectDownloading] = useState(false);
   const [selectedPreset, setSelectedPreset] = useState<BattlePreset | null>(null);
   const [deletePreset, setDeletePreset] = useState<BattlePreset | null>(null);
 
@@ -110,6 +113,26 @@ export function AtlasBrowserPage({ onClose }: { onClose: () => void }) {
   }, [server]);
 
   useEffect(() => {
+    if (tab !== 'craftEssences' || craftEssences.length > 0) return;
+    let active = true;
+    setCatalogLoading(true);
+    setError('');
+    void ensureCraftEssences(server)
+      .then((entries) => {
+        if (active) setCraftEssences(entries);
+      })
+      .catch((reason: unknown) => {
+        if (active) setError(reason instanceof Error ? reason.message : String(reason));
+      })
+      .finally(() => {
+        if (active) setCatalogLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [craftEssences.length, server, tab]);
+
+  useEffect(() => {
     let active = true;
     if (craftEssences.length === 0) {
       setCachedCraftEssenceIds(new Set());
@@ -136,6 +159,7 @@ export function AtlasBrowserPage({ onClose }: { onClose: () => void }) {
   useEffect(() => {
     setQuery('');
     setClassName('');
+    setNotice('');
   }, [tab, server]);
 
   const visibleServants = useMemo(
@@ -182,6 +206,46 @@ export function AtlasBrowserPage({ onClose }: { onClose: () => void }) {
       setError(reason instanceof Error ? reason.message : String(reason));
     } finally {
       setCatalogLoading(false);
+    }
+  };
+
+  const downloadCraftEssenceByAtlasId = async () => {
+    const atlasId = parseAtlasCraftEssenceId(query);
+    if (tab !== 'craftEssences' || atlasId === null || directDownloading) return;
+    setDirectDownloading(true);
+    setError('');
+    setNotice('');
+    try {
+      let catalog = craftEssences;
+      if (!catalog.some((entry) => entry.id === atlasId)) {
+        await downloadAtlasDataset(server, 'craftEssences');
+        catalog = await getCraftEssences(server);
+        setCraftEssences(catalog);
+      }
+      if (!catalog.some((entry) => entry.id === atlasId)) {
+        throw new Error(t('atlasBrowser.atlasIdNotFound', { id: atlasId }));
+      }
+      const result = await downloadCraftEssenceImage(server, atlasId);
+      if (result.failed > 0 || result.downloaded + result.skipped === 0) {
+        throw new Error(result.errors.join('; ') || t('atlasBrowser.imageDownloadFailed'));
+      }
+      setCachedCraftEssenceIds((current) => new Set(current).add(atlasId));
+      setNotice(
+        t('atlasBrowser.atlasIdDownloadSuccess', {
+          id: atlasId,
+          downloaded: result.downloaded,
+          skipped: result.skipped,
+        }),
+      );
+    } catch (reason) {
+      setError(
+        t('atlasBrowser.atlasIdDownloadFailed', {
+          id: atlasId,
+          reason: reason instanceof Error ? reason.message : String(reason),
+        }),
+      );
+    } finally {
+      setDirectDownloading(false);
     }
   };
 
@@ -256,6 +320,13 @@ export function AtlasBrowserPage({ onClose }: { onClose: () => void }) {
                 <input
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' && parseAtlasCraftEssenceId(query) !== null) {
+                      event.preventDefault();
+                      void downloadCraftEssenceByAtlasId();
+                    }
+                  }}
+                  disabled={directDownloading}
                   placeholder={
                     tab === 'servants'
                       ? t('atlasBrowser.searchServants')
@@ -264,6 +335,13 @@ export function AtlasBrowserPage({ onClose }: { onClose: () => void }) {
                   className="w-full rounded-xl border border-border bg-bg-primary py-2.5 pl-9 pr-3 text-sm text-text-primary outline-none transition-colors focus:border-accent"
                 />
               </label>
+              {tab === 'craftEssences' && (
+                <p className="text-xs text-text-muted">
+                  {directDownloading
+                    ? t('atlasBrowser.atlasIdDownloading')
+                    : t('atlasBrowser.atlasIdDownloadHint')}
+                </p>
+              )}
               {tab === 'servants' && (
                 <div
                   className="flex gap-2 overflow-x-auto pb-1"
@@ -290,6 +368,9 @@ export function AtlasBrowserPage({ onClose }: { onClose: () => void }) {
           )}
 
           {error && <p className="rounded-xl bg-error/10 px-4 py-3 text-sm text-error">{error}</p>}
+          {notice && (
+            <p className="rounded-xl bg-accent/10 px-4 py-3 text-sm text-accent">{notice}</p>
+          )}
 
           {tab === 'servants' && (
             <CatalogGrid
@@ -786,10 +867,19 @@ function matchesEntry(
 ): boolean {
   const needle = query.trim().toLocaleLowerCase();
   if (!needle) return true;
+  const atlasId = parseAtlasCraftEssenceId(query);
+  if (atlasId !== null) return entry.id === atlasId;
   const id = String(entry.collectionNo ?? entry.id ?? '');
   return [entry.name, entry.nameCn, entry.nameTw, entry.nameJp, id, ...(aliases[id] ?? [])]
     .filter(Boolean)
     .some((value) => String(value).toLocaleLowerCase().includes(needle));
+}
+
+export function parseAtlasCraftEssenceId(query: string): number | null {
+  const match = /^#(\d+)$/.exec(query.trim());
+  if (!match) return null;
+  const id = Number(match[1]);
+  return Number.isSafeInteger(id) && id > 0 ? id : null;
 }
 
 function normalizeClassName(value?: string): string {

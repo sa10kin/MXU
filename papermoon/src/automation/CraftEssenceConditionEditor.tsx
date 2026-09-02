@@ -4,7 +4,6 @@ import { Plus, Trash2 } from 'lucide-react';
 import {
   CHINESE_ATLAS_SERVERS,
   ensureCraftEssences,
-  getCraftEssences,
   type AtlasServer,
 } from '../atlas/atlasService';
 import {
@@ -50,15 +49,19 @@ export function CraftEssenceConditionEditor({
     setOptions([]);
     void Promise.all(
       CHINESE_ATLAS_SERVERS.map(
-        async (server) => [server, await getCraftEssences(server)] as const,
+        async (server) => [server, await ensureCraftEssences(server)] as const,
       ),
-    ).then((entries) => {
-      if (mounted) {
-        setOptions(
-          mergeCraftEssenceOptions(Object.fromEntries(entries), scopeServer, displayServer),
-        );
-      }
-    });
+    )
+      .then((entries) => {
+        if (mounted) {
+          setOptions(
+            mergeCraftEssenceOptions(Object.fromEntries(entries), scopeServer, displayServer),
+          );
+        }
+      })
+      .catch(() => {
+        if (mounted) setError(true);
+      });
     return () => {
       mounted = false;
     };

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { matchesClassFilter } from './AtlasBrowserPage';
+import { matchesClassFilter, parseAtlasCraftEssenceId } from './AtlasBrowserPage';
 
 describe('Atlas servant class filters', () => {
   it('keeps Beast variants in all and groups them under Beast', () => {
@@ -13,5 +13,15 @@ describe('Atlas servant class filters', () => {
   it('separates Shielder from Unknown', () => {
     expect(matchesClassFilter('shielder', 'shielder')).toBe(true);
     expect(matchesClassFilter('shielder', 'unknown')).toBe(false);
+  });
+});
+
+describe('Atlas craft essence ID query', () => {
+  it('accepts only a positive exact #AtlasID', () => {
+    expect(parseAtlasCraftEssenceId('#9408800')).toBe(9408800);
+    expect(parseAtlasCraftEssenceId(' #9408800 ')).toBe(9408800);
+    expect(parseAtlasCraftEssenceId('9408800')).toBeNull();
+    expect(parseAtlasCraftEssenceId('#0')).toBeNull();
+    expect(parseAtlasCraftEssenceId('#9408800x')).toBeNull();
   });
 });
