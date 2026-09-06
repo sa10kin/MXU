@@ -20,6 +20,7 @@ import { ContextMenu, useContextMenu, type MenuItem } from './ContextMenu';
 import { getFrameInterval } from './FrameRateSelector';
 import { loggers } from '@/utils/logger';
 import { useIsMobile } from '@/hooks/useIsMobile';
+import { useFrameUrl } from '@/utils/useFrameUrl';
 
 const log = loggers.ui;
 
@@ -52,7 +53,7 @@ export function ScreenshotPanel() {
   // 在移动端单列布局中，截图面板始终可见，不受 sidePanelExpanded 影响
   const isPanelVisible = isMobile || sidePanelExpanded;
 
-  const [screenshotUrl, setScreenshotUrl] = useState<string | null>(null);
+  const [screenshotUrl, setScreenshotUrl] = useFrameUrl();
   const [error, setError] = useState<string | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
 

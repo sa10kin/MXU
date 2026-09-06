@@ -40,6 +40,7 @@ import { splitTasksIntoThreeSegments } from '@/utils/taskSegmentation';
 import { startGlobalCallbackListener } from '@/components/connection/callbackCache';
 import { stopInstanceTasks } from '@/services/taskStopService';
 import { buildPiEnvVars } from '@/utils/piEnv';
+import { useFrameUrl } from '@/utils/useFrameUrl';
 
 const log = loggers.ui;
 
@@ -87,7 +88,7 @@ function InstanceCard({ instanceId, instanceName, isActive, onSelect }: Instance
 
   const { state: menuState, show: showMenu, hide: hideMenu } = useContextMenu();
 
-  const [screenshotUrl, setScreenshotUrl] = useState<string | null>(null);
+  const [screenshotUrl, setScreenshotUrl] = useFrameUrl();
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isStarting, setIsStarting] = useState(false);
   const [isStopping, setIsStopping] = useState(false);
